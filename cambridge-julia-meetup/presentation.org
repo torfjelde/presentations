@@ -92,6 +92,9 @@ plot(samples_nuts[[:s, :m]])
 ** =ADVI=
 [[./figures/advi_w_elbo_fps15_125_forward_diff.gif]]
 
+** Benchmarks
+file:figures/turing-benchmarks.png
+
 * =Bijectors.jl=
 #+ATTR_REVEAL: :frag (appear)
 #+name: def:bijector
