@@ -65,3 +65,18 @@ div#table-of-contents {
     border-radius: 10px;
     box-shadow: 2px 5px rgba(0, 0, 0, 0.3);
 }
+
+/* Special cases */
+#mvnormal-comparison div.figure {
+    width: 40%;
+    display: inline-block;
+}
+
+div.figure p:first-child {
+    margin: 10px 0;
+}
+
+div.figure p:last-child {
+    font-size: 0.5em;
+    margin: 0 0 10px 0;
+}

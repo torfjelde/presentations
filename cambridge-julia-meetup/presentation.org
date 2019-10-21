@@ -414,6 +414,7 @@ file:figures/nf-banana-density-estimation.gif
 
 
 * Comparison
+** NF-ADVI vs. MF-ADVI
 #+begin_src jupyter-julia :session jl
 using Turing
 
@@ -430,6 +431,22 @@ L = [
     end
 end
 #+end_src
+*** Visualized
+#+HTML: <div id="mvnormal-comparison">
+
+#+CAPTION: True posterior
+file:figures/mvnormal-1-posterior.png
+
+#+CAPTION: MF-ADVI
+file:figures/mvnormal-1-mfvi-elbo.png
+
+#+CAPTION: NF-ADVI (rational-quadratic)
+file:figures/mvnormal-1-nfvi-elbo.png
+
+#+CAPTION: NF-ADVI (affine)
+file:figures/mvnormal-1-nfvi-elbo.png
+
+#+HTML: </div>
 
 ** Example: 8 schools dataset
 #+begin_src jupyter-julia :session jl :exports code :results none
