@@ -379,6 +379,9 @@ Can now optimise any objective over distributions, e.g. perform /maximum likelih
 
 #+end_src
 
+#+ATTR_HTML: :width 35%
+file:figures/nf-banana-density-estimation.gif
+
 ** Methods
 
 |-------------------------------------------------------------+-------------------------+--------------|
