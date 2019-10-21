@@ -415,6 +415,17 @@ file:figures/nf-banana-density-estimation.gif
 
 * Comparison
 ** NF-ADVI vs. MF-ADVI
+Consider $L = \begin{pmatrix} 10 & 0 \\ 10 & 10 \end{pmatrix}$ and
+\begin{equation*}
+\begin{split}
+  m & \sim \mathcal{N}(0, 1) \\
+  x_i & \overset{i.i.d.}{=} \mathcal{N}(m, L L^T) \quad i = 1, \dots, n
+\end{split}
+\end{equation*}
+
+#+HTML: <div class="fragment (appear)">
+
+In =Turing.jl=
 #+begin_src jupyter-julia :session jl
 using Turing
 
@@ -431,6 +442,9 @@ L = [
     end
 end
 #+end_src
+
+#+HTML: </div>
+
 *** Visualized
 #+HTML: <div id="mvnormal-comparison">
 
@@ -444,7 +458,7 @@ file:figures/mvnormal-1-mfvi-elbo.png
 file:figures/mvnormal-1-nfvi-elbo.png
 
 #+CAPTION: NF-ADVI (affine)
-file:figures/mvnormal-1-nfvi-elbo.png
+file:figures/mvnormal-1-nfvi-elbo-affine.png
 
 #+HTML: </div>
 
