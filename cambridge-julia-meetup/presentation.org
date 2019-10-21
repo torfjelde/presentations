@@ -10,18 +10,17 @@
 #+TITLE: You have data and I have distributions: a talk on =Turing.jl= and =Bijectors.jl=
 
 * Why bother?
-- 
+*Goal:* find $\theta$ which maximises the probability of our observations $\left\{ x_i \right\}_{i = 1}^n$
 
 ** Bayes' rule
-- *Goal:* find $\theta$ which maximises the probability of our observations $\left\{ x_i \right\}_{i = 1}^n$
-- *Bayes' rule*
-  \begin{equation*}
-  p\big(\theta \mid \left\{ x_i \right\}_{i = 1}^n\big) = \frac{p\big(\left\{ x_i \right\}_{i = 1}^n \mid \theta\big) p(\theta)}{p\big(\left\{ x_i \right\}_{i = 1}^n\big)}
-  \end{equation*}
-  or, since the denominator is constant,
-  \begin{equation*}
-  p\big(\theta \mid \left\{ x_i \right\}_{i = 1}^n \big) \propto p \big( \left\{ x_i \right\}_{i = 1}^n \mid \theta \big) p(\theta)
-  \end{equation*}
+*Bayes' rule* gives us
+\begin{equation*}
+p\big(\theta \mid \left\{ x_i \right\}_{i = 1}^n\big) = \frac{p\big(\left\{ x_i \right\}_{i = 1}^n \mid \theta\big) p(\theta)}{p\big(\left\{ x_i \right\}_{i = 1}^n\big)}
+\end{equation*}
+or, since the denominator is constant,
+\begin{equation*}
+p\big(\theta \mid \left\{ x_i \right\}_{i = 1}^n \big) \propto p \big( \left\{ x_i \right\}_{i = 1}^n \mid \theta \big) p(\theta)
+\end{equation*}
 
 ** Reasons
 - "But Tor, why do I need distributions for my data? Why is it not enough with just a /single point/ for my predictions?"
@@ -344,7 +343,7 @@ for a =Bijector= $b$ defines a density $\tilde{p}(y)$
 \end{equation*}
 
 #+HTML: <div class="fragment (appear)">
-Therefore if we can compute $\mathcal{J}_{b^{-1}}(y)$ we have an analytical expression for $\tilde{p}(y)$!
+Therefore if we can compute $\mathcal{J}_{b^{-1}}(y)$ we can indeed compute $\tilde{p}(y)$!
 #+HTML: </div>
 
 #+ATTR_REVEAL: :frag (appear)
@@ -454,11 +453,15 @@ file:figures/mvnormal-1-posterior.png
 #+CAPTION: MF-ADVI
 file:figures/mvnormal-1-mfvi-elbo.png
 
+#+HTML: <div class="fragment (appear)">
+
 #+CAPTION: NF-ADVI (rational-quadratic)
 file:figures/mvnormal-1-nfvi-elbo.png
 
 #+CAPTION: NF-ADVI (affine)
 file:figures/mvnormal-1-nfvi-elbo-affine.png
+
+#+HTML: </div>
 
 #+HTML: </div>
 
