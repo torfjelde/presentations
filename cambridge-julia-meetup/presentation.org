@@ -17,7 +17,7 @@ using Plots, StatsPlots
 theme(:solarized)
 #+end_src
 
-#+begin_src jupyter-julia :session jl :exports code :results silent
+#+begin_src jupyter-julia :session jl :exports code :results silent :async yes
 using Turing
 #+end_src
 
@@ -132,7 +132,7 @@ Don't believe me?
 
 #+REVEAL: split
 
-#+begin_src jupyter-julia :session jl :exports both
+#+begin_src jupyter-julia :session jl :exports both :file figures/normal-pdfs.svg
 d1 = Normal(1.0, 5.0)  # 𝒩(1, 5)
 xs = rand(d1, 100_000)
 
@@ -144,7 +144,7 @@ density!(ys, label = "d2", linewidth = 3)
 #+end_src
 
 #+RESULTS:
-[[file:./.ob-jupyter/40747c0ca1258d260726894f764c5fd827741aef.svg]]
+file:figures/normal-pdfs.svg
 
 #+REVEAL: split
 
@@ -173,14 +173,14 @@ td isa Distribution
 
 #+REVEAL: split
 
-#+begin_src jupyter-julia :session jl :exports both
+#+begin_src jupyter-julia :session jl :exports both :file figures/normal-transformed-pdfs.svg
 x_range = -14.0:0.05:16.0
 plot(x_range, x -> exp(logpdf(d1, x)), label = "d1", linewidth = 4, linestyle = :dash)
 plot!(x_range, x -> exp(logpdf(td, x)), label = "td", linewidth = 4, alpha = 0.6)
 #+end_src
 
 #+RESULTS:
-[[file:./.ob-jupyter/e7cadc86d1ba41a6b2a936d832a2a8b068709bed.svg]]
+[[file:figures/normal-transformed-pdfs.svg]]
 
 #+REVEAL: split
 
@@ -190,7 +190,7 @@ Great; just another way to draw samples from a normal distribution...
 
 Or /is it/?
 
-#+begin_src jupyter-julia :session jl :exports both
+#+begin_src jupyter-julia :session jl :exports both :file figures/simple-nf-pdf.svg
 d = MvNormal(zeros(1), ones(1))
 b = (
     PlanarLayer(1) ∘ RadialLayer(1) ∘
@@ -207,7 +207,7 @@ density!(xs, label = "", linewidth = 3)
 #+REVEAL: split
 
 #+RESULTS:
-[[file:./.ob-jupyter/b888e5cde16fe6fd03835435587daa492e577d0e.svg]]
+[[file:figures/simple-nf-pdf.svg]]
 
 That doesn't look very /normal/, now does it?!
 
