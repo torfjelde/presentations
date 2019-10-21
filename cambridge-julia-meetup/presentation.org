@@ -375,11 +375,8 @@ Can now optimise any objective over distributions, e.g. perform /maximum likelih
 #+HTML: </div>
 
 *** Example: MLE using NF
-#+begin_src jupyter-julia :session jl :exports code :file figures/nf-mle-estimate.svg
-
-#+end_src
-
 #+ATTR_HTML: :width 35%
+#+CAPTION: Empirical density estimate (blue) compared with single batch of samples (red).
 file:figures/nf-banana-density-estimation.gif
 
 ** Methods
