@@ -2,19 +2,35 @@
 #+OPTIONS: tex:t
 
 #+REVEAL_ROOT: https://cdn.jsdelivr.net/npm/reveal.js
-#+REVEAL_TITLE_SLIDE: <div><h1 style="font-size: 2em">%t</h1></div>
+#+REVEAL_TITLE_SLIDE: <div><h1>You have data and I have distributions</h1><h3>A talk on <code>Turing.jl</code> and <code>Bijectors.jl</code></h3></div>
 #+REVEAL_EXTRA_CSS: custom.css
+#+REVEAL_THEME: moon
 
 #+AUTHOR: Tor Erlend Fjelde
 #+TITLE: You have data and I have distributions: a talk on =Turing.jl= and =Bijectors.jl=
 
 * Why bother?
+- 
+
+** Bayes' rule
+- *Goal:* find $\theta$ which maximises the probability of our observations $\left\{ x_i \right\}_{i = 1}^n$
+- *Bayes' rule*
+  \begin{equation*}
+  p\big(\theta \mid \left\{ x_i \right\}_{i = 1}^n\big) = \frac{p\big(\left\{ x_i \right\}_{i = 1}^n \mid \theta\big) p(\theta)}{p\big(\left\{ x_i \right\}_{i = 1}^n\big)}
+  \end{equation*}
+  or, since the denominator is constant,
+  \begin{equation*}
+  p\big(\theta \mid \left\{ x_i \right\}_{i = 1}^n \big) \propto p \big( \left\{ x_i \right\}_{i = 1}^n \mid \theta \big) p(\theta)
+  \end{equation*}
+
+** Reasons
+- "But Tor, why do I need distributions for my data? Why is it not enough with just a /single point/ for my predictions?"
+- Well then I'll ask you; do you want to know how certain you are about your 
 
 
 * Setup
 #+begin_src jupyter-julia :session jl :exports code :results silent
 using Plots, StatsPlots
-theme(:solarized)
 #+end_src
 
 #+begin_src jupyter-julia :session jl :exports code :results silent :async yes
@@ -23,6 +39,16 @@ using Turing
 
 
 * =Turing.jl=
+#+begin_quote
+=Turing.jl= is a (universal) _probabilistic programming language_ (PPL) in Julia.
+#+end_quote
+
+What does that even mean?
+
+1. Specify generative model in Julia with neat syntax
+2. Perform Bayesian inference over the latent variables using a vast library of MCMC samplers
+3. ???
+4. Profit!!!
 
 ** Gaussian-InverseGamma conjugate model
 In mathematical notation:
@@ -46,11 +72,25 @@ end
 
 ** TODO =HMC=
 
+#+begin_src jupyter-julia :session jl
+xs = randn(1000)
+
+# Sample 1000 samples using HMC
+samples_nuts = sample(xs, HMC(1000, 0.1, 10))
+#+end_src
+
+#+begin_src jupyter-julia :session jl :file figures/gaussian-inversegamma-hmc.svg
+plot(samples_nuts[[:s, :m]])
+#+end_src
+
 ** =ADVI=
 [[./figures/advi_w_elbo_fps15_125_forward_diff.gif]]
 
 * =Bijectors.jl=
-A *bijector* or *diffeomorphism* is a /bijection/ $b$ which is /differentiable/ with a /differentiable/ inverse $b^{-1}$.
+#+name: def:bijector
+#+begin_definition :title ""
+A *bijector* or *diffeomorphism* is a differentiable /bijection/ $b$ with a /differentiable/ inverse $b^{-1}$.
+#+end_definition
 
 For example
 - $\exp$ is differentiable
@@ -64,12 +104,13 @@ So $\exp$ is a bijector!
 using Pkg; Pkg.activate("/home/tor/.julia/dev/Bijectors")
 #+end_src
 
+In =Bijectors.jl=
+
 #+begin_src jupyter-julia :session jl :exports both
-using Bijectors
-using Bijectors: Exp, Log
+using Bijectors; using Bijectors: Exp, Log
 
 b = Exp()
-b⁻¹ = inv(b) # or b^(-1)
+b⁻¹ = inv(b)
 
 b⁻¹ isa Log
 #+end_src
@@ -77,13 +118,28 @@ b⁻¹ isa Log
 #+RESULTS:
 : true
 
+We can evaluate a =Bijector=
+
 #+begin_src jupyter-julia :session jl :exports both
 x = 0.0
-b(x) == 1.0
+b(x) == 1.0  # since e⁰ = 1
 #+end_src
 
 #+RESULTS:
 : true
+
+We can /compose/ bijectors to get a new =Bijector=
+
+#+begin_src jupyter-julia :session jl :exports both
+(b ∘ b) isa Bijector
+#+end_src
+
+#+RESULTS:
+: true
+
+#+REVEAL: split
+
+And evaluate compositions of bijectors
 
 #+begin_src jupyter-julia :session jl :exports both
 (b⁻¹ ∘ b)(x) == x
@@ -92,11 +148,11 @@ b(x) == 1.0
 #+RESULTS:
 : true
 
-#+REVEAL: split
+What about more complex/deeper compositions?
 
 #+begin_src jupyter-julia :session jl :exports both
 cb = b ∘ b ∘ b
-cb⁻¹ = inv(cb)
+cb⁻¹ = inv(cb)        # <= inversion of a "large" composition
 
 (cb⁻¹ ∘ cb)(x) == x
 #+end_src
@@ -104,10 +160,11 @@ cb⁻¹ = inv(cb)
 #+RESULTS:
 : true
 
-Of particular interest is
+We'll see later that of particular interest is the term
 \begin{equation*}
-\log \left| \det \mathcal{J}_{b}(x) \right|
+\log \left| \det \mathcal{J}_{b^{-1}}(y) \right| \quad \text{or} \quad \log \left| \det \mathcal{J}_{b}(x) \right|
 \end{equation*}
+Which works seamlessly even for compositions
 
 #+begin_src jupyter-julia :session jl :exports both
 logabsdetjac(cb, x)
@@ -132,37 +189,44 @@ Don't believe me?
 
 #+REVEAL: split
 
-#+begin_src jupyter-julia :session jl :exports both :file figures/normal-pdfs.svg
-d1 = Normal(1.0, 5.0)  # 𝒩(1, 5)
+#+begin_src jupyter-julia :session jl :exports none :results none
+using Random; Random.seed!(42)
+#+end_src
+
+#+begin_src jupyter-julia :session jl :exports both :file figures/normal-pdfs.svg :results none
+d1 = Normal(1.0, 5.0)                # 𝒩(1, 5)
 xs = rand(d1, 100_000)
 
-d2 = Normal(0.0, 1.0)  # 𝒩(0, 1)
-ys = 1.0 .+ rand(d2, 100_000) .* 5.0
+d2 = Normal(0.0, 1.0)                # 𝒩(0, 1)
+ys = 1.0 .+ rand(d2, 100_000) .* 5.0 # => y ~ 𝒩(1, 5)
 
 density(xs, label = "d1", linewidth = 3)
 density!(ys, label = "d2", linewidth = 3)
 #+end_src
 
 #+RESULTS:
-file:figures/normal-pdfs.svg
+[[file:figures/normal-pdfs.svg]]
 
 #+REVEAL: split
 
-In =Bijectors.jl= we define transformations which /induce/ distributions
+In =Bijectors.jl= we define transformations which _induce_ distributions
 
 #+begin_src jupyter-julia :session jl :exports both
-using Bijectors
 using Bijectors: Shift, Scale
 
-b = Shift(1.0) ∘ Scale(5.0)
-td = transformed(d2, b)
+# Define the transform
+b = Shift(1.0) ∘ Scale(5.0) # => x ↦ 1.0 + 5.0x
+td = transformed(d2, b)     # => 𝒩(1.0, 5.0)
 
 y = rand(td)
+# Ensure we have the same densities
 logpdf(td, y) ≈ logpdf(d1, y)
 #+end_src
 
 #+RESULTS:
 : true
+
+Moreover, =td= is a =TransformedDistribution= and
 
 #+begin_src jupyter-julia :session jl :exports both
 td isa Distribution
@@ -173,7 +237,7 @@ td isa Distribution
 
 #+REVEAL: split
 
-#+begin_src jupyter-julia :session jl :exports both :file figures/normal-transformed-pdfs.svg
+#+begin_src jupyter-julia :session jl :exports both :file figures/normal-transformed-pdfs.svg :results none
 x_range = -14.0:0.05:16.0
 plot(x_range, x -> exp(logpdf(d1, x)), label = "d1", linewidth = 4, linestyle = :dash)
 plot!(x_range, x -> exp(logpdf(td, x)), label = "td", linewidth = 4, alpha = 0.6)
@@ -190,28 +254,81 @@ Great; just another way to draw samples from a normal distribution...
 
 Or /is it/?
 
-#+begin_src jupyter-julia :session jl :exports both :file figures/simple-nf-pdf.svg
+#+begin_src jupyter-julia :session jl :exports none
+using Random; Random.seed!(10);
+#+end_src
+
+#+RESULTS:
+
+#+begin_src jupyter-julia :session jl :exports code :file figures/simple-nf-pdf.svg :results none
 d = MvNormal(zeros(1), ones(1))
+
+# "Deep" transformation
 b = (
-    PlanarLayer(1) ∘ RadialLayer(1) ∘
-    RadialLayer(1) ∘ PlanarLayer(1)
+    RadialLayer(1) ∘ RadialLayer(1) ∘
+    RadialLayer(1) ∘ RadialLayer(1)
 )
 td = transformed(d, b)
 
-xs = vec(rand(td, 10_000))
+# Sample from flow
+xs = rand(td, 10_000)
 
-histogram(xs, bins = 100; normed = true, label = "", alpha = 0.7)
-density!(xs, label = "", linewidth = 3)
+x_range = minimum(xs):0.05:maximum(xs)
+lps = exp.(logpdf(td, reshape(x_range, (1, :))))  # compute the probabilities
+
+histogram(vec(xs), bins = 100; normed = true, label = "", alpha = 0.7)
+xlabel!("y")
+plot!(x_range, lps, linewidth = 3, label = "p(y)")
 #+end_src
 
 #+REVEAL: split
+#+LaTeX: \clearpage
 
 #+RESULTS:
 [[file:figures/simple-nf-pdf.svg]]
 
 That doesn't look very /normal/, now does it?!
 
-** TODO Normalizing flows: adding neural networks because we can
+*** How?
+It turns out that the process
+\begin{equation*}
+\begin{split}
+  x & \sim p \\
+  y & := b(x)
+\end{split}
+\end{equation*}
+for a =Bijector= $b$ defines a density $\tilde{p}(y)$
+\begin{equation*}
+\tilde{p}(y) := p \big( b^{-1}(y) \big) \left| \det \mathcal{J}_{b^{-1}}(y) \right|
+\end{equation*}
+Therefore if we can compute $\mathcal{J}_{b^{-1}}(y)$ we have an analytical expression for $\tilde{p}(y)$!
+
+#+begin_quote
+But is this actually useful?
+#+end_quote
+
+** Normalising flows: parameterising $b$
+One might consider constructing a /parameterised/ =Bijector= $b_{\phi}$.
+
+Given a density $p(x)$ we can obtain a parameterised density
+\begin{equation*}
+\tilde{p}_{\phi}(y) = p \big( b_{\phi}^{-1}(y) \big) \left| \det \mathcal{J}_{b_{\phi}^{-1}}(y) \right|
+\end{equation*}
+
+#+begin_quote
+$b_{\phi}$ is often referred to as *normalising flow (NF)*
+#+end_quote
+
+Can now optimise any objective over distributions, e.g. perform /maximum likelihood estimation/ (MLE) for some given i.i.d. dataset $\left\{ y_i \right\}_{i = 1}^n$
+\begin{equation*}
+\underset{\phi}{\text{argmax}}\ \sum_{i = 1}^{n} \tilde{p}_{\phi}(y_i)
+\end{equation*}
+
+*** Example: MLE using NF
+#+begin_src jupyter-julia :session jl :exports code :file figures/nf-mle-estimate.svg
+
+#+end_src
+
 ** Methods
 
 |-------------------------------------------------------------+-------------------------+--------------|
