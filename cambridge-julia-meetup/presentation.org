@@ -1,0 +1,557 @@
+#+SETUPFILE: ~/org-blog/setup.org
+#+OPTIONS: tex:t
+
+#+REVEAL_ROOT: https://cdn.jsdelivr.net/npm/reveal.js
+#+REVEAL_TITLE_SLIDE: <div><h1 style="font-size: 2em">%t</h1></div>
+#+REVEAL_EXTRA_CSS: custom.css
+
+#+AUTHOR: Tor Erlend Fjelde
+#+TITLE: You have data and I have distributions: a talk on =Turing.jl= and =Bijectors.jl=
+
+* Why bother?
+
+
+* Setup
+#+begin_src jupyter-julia :session jl :exports code :results silent
+using Plots, StatsPlots
+theme(:solarized)
+#+end_src
+
+#+begin_src jupyter-julia :session jl :exports code :results silent
+using Turing
+#+end_src
+
+
+* =Turing.jl=
+
+** Gaussian-InverseGamma conjugate model
+In mathematical notation:
+\begin{equation*}
+\begin{split}
+  s & \sim \mathrm{InverseGamma}(2, 3) \\
+  m & \sim \mathcal{N}(0, \sqrt{s}) \\
+  x_i & \sim \mathcal{N}(m, \sqrt{s}), \quad i = 1, \dots, n
+\end{split}
+\end{equation*}
+In =Turing.jl=:
+#+begin_src jupyter-julia :session jl
+@model model(x) = begin
+    s ~ InverseGamma(2, 3)
+    m ~ Normal(0.0, √s)
+    for i = 1:length(x)
+        x[i] ~ Normal(m, √s)
+    end
+end
+#+end_src
+
+** TODO =HMC=
+
+** =ADVI=
+[[./figures/advi_w_elbo_fps15_125_forward_diff.gif]]
+
+* =Bijectors.jl=
+A *bijector* or *diffeomorphism* is a /bijection/ $b$ which is /differentiable/ with a /differentiable/ inverse $b^{-1}$.
+
+For example
+- $\exp$ is differentiable
+- $\exp$ has inverse $\log$
+- $\log$ is differentiable (on $(0, \infty)$)
+So $\exp$ is a bijector!
+
+#+REVEAL: split
+
+#+begin_src jupyter-julia :session jl :results silent :exports none
+using Pkg; Pkg.activate("/home/tor/.julia/dev/Bijectors")
+#+end_src
+
+#+begin_src jupyter-julia :session jl :exports both
+using Bijectors
+using Bijectors: Exp, Log
+
+b = Exp()
+b⁻¹ = inv(b) # or b^(-1)
+
+b⁻¹ isa Log
+#+end_src
+
+#+RESULTS:
+: true
+
+#+begin_src jupyter-julia :session jl :exports both
+x = 0.0
+b(x) == 1.0
+#+end_src
+
+#+RESULTS:
+: true
+
+#+begin_src jupyter-julia :session jl :exports both
+(b⁻¹ ∘ b)(x) == x
+#+end_src
+
+#+RESULTS:
+: true
+
+#+REVEAL: split
+
+#+begin_src jupyter-julia :session jl :exports both
+cb = b ∘ b ∘ b
+cb⁻¹ = inv(cb)
+
+(cb⁻¹ ∘ cb)(x) == x
+#+end_src
+
+#+RESULTS:
+: true
+
+Of particular interest is
+\begin{equation*}
+\log \left| \det \mathcal{J}_{b}(x) \right|
+\end{equation*}
+
+#+begin_src jupyter-julia :session jl :exports both
+logabsdetjac(cb, x)
+#+end_src
+
+#+RESULTS:
+: 3.718281828459045
+
+** How does it relate to distributions?
+\begin{equation*}
+x \sim \mathcal{N}(1, 5)
+\end{equation*}
+or, equivalently,
+\begin{equation*}
+\begin{split}
+  \xi &\sim \mathcal{N}(0, 1) \\
+  x &:= 1 + 5 \xi
+\end{split}
+\end{equation*}
+
+Don't believe me?
+
+#+REVEAL: split
+
+#+begin_src jupyter-julia :session jl :exports both
+d1 = Normal(1.0, 5.0)  # 𝒩(1, 5)
+xs = rand(d1, 100_000)
+
+d2 = Normal(0.0, 1.0)  # 𝒩(0, 1)
+ys = 1.0 .+ rand(d2, 100_000) .* 5.0
+
+density(xs, label = "d1", linewidth = 3)
+density!(ys, label = "d2", linewidth = 3)
+#+end_src
+
+#+RESULTS:
+[[file:./.ob-jupyter/40747c0ca1258d260726894f764c5fd827741aef.svg]]
+
+#+REVEAL: split
+
+In =Bijectors.jl= we define transformations which /induce/ distributions
+
+#+begin_src jupyter-julia :session jl :exports both
+using Bijectors
+using Bijectors: Shift, Scale
+
+b = Shift(1.0) ∘ Scale(5.0)
+td = transformed(d2, b)
+
+y = rand(td)
+logpdf(td, y) ≈ logpdf(d1, y)
+#+end_src
+
+#+RESULTS:
+: true
+
+#+begin_src jupyter-julia :session jl :exports both
+td isa Distribution
+#+end_src
+
+#+RESULTS:
+: true
+
+#+REVEAL: split
+
+#+begin_src jupyter-julia :session jl :exports both
+x_range = -14.0:0.05:16.0
+plot(x_range, x -> exp(logpdf(d1, x)), label = "d1", linewidth = 4, linestyle = :dash)
+plot!(x_range, x -> exp(logpdf(td, x)), label = "td", linewidth = 4, alpha = 0.6)
+#+end_src
+
+#+RESULTS:
+[[file:./.ob-jupyter/e7cadc86d1ba41a6b2a936d832a2a8b068709bed.svg]]
+
+#+REVEAL: split
+
+#+begin_quote
+Great; just another way to draw samples from a normal distribution...
+#+end_quote
+
+Or /is it/?
+
+#+begin_src jupyter-julia :session jl :exports both
+d = MvNormal(zeros(1), ones(1))
+b = (
+    PlanarLayer(1) ∘ RadialLayer(1) ∘
+    RadialLayer(1) ∘ PlanarLayer(1)
+)
+td = transformed(d, b)
+
+xs = vec(rand(td, 10_000))
+
+histogram(xs, bins = 100; normed = true, label = "", alpha = 0.7)
+density!(xs, label = "", linewidth = 3)
+#+end_src
+
+#+REVEAL: split
+
+#+RESULTS:
+[[file:./.ob-jupyter/b888e5cde16fe6fd03835435587daa492e577d0e.svg]]
+
+That doesn't look very /normal/, now does it?!
+
+** TODO Normalizing flows: adding neural networks because we can
+** Methods
+
+|-------------------------------------------------------------+-------------------------+--------------|
+| Operation                                                   | Method                  | Automatic    |
+|-------------------------------------------------------------+-------------------------+--------------|
+| $b \mapsto b^{-1}$                                          | =inv(b)=                | $\checkmark$ |
+| $(b_1, b_2) \mapsto (b_1 \circ b_2)$                        | =b1 ∘ b2=               | $\checkmark$ |
+| $(b_1, b_2) \mapsto [b_1, b_2]$                             | =stack(b1, b2)=         | $\checkmark$ |
+| $(b, n) \mapsto b^n := b \circ \cdots \circ b$ (n times)    | =b^n=                   | $\checkmark$ |
+|-------------------------------------------------------------+-------------------------+--------------|
+
+#+REVEAL: split
+
+|----------------------------------------------------------------+----------------------+--------------|
+| Operation                                                      | Method               | Automatic    |
+|----------------------------------------------------------------+----------------------+--------------|
+| $x \mapsto b(x)$                                               | =b(x)=               | $\times$     |
+| $y \mapsto b^{-1}(y)$                                          | =inv(b)(y)=          | $\times$     |
+| $x \mapsto \log \lvert\det \mathcal{J}_b(x)\rvert$         | =logabsdetjac(b, x)= | AD           |
+| $x \mapsto \big( b(x), \log \lvert \det \mathcal{J}_b(x)\rvert \big)$ | =forward(b, x)=      | $\checkmark$ |
+|----------------------------------------------------------------+----------------------+--------------|
+
+#+REVEAL: split
+
+|--------------------------------------------------------------------+-------------------------+--------------|
+| Operation                                                          | Method                  | Automatic    |
+|--------------------------------------------------------------------+-------------------------+--------------|
+| $p \mapsto q:= b_* p$                                              | =q = transformed(p, b)= | $\checkmark$ |
+| $y \sim q$                                                         | =y = rand(q)=           | $\checkmark$ |
+| $p \mapsto b$ s.t. $\mathrm{support}(b_* p) = \mathbb{R}^d$        | =bijector(p)=           | $\checkmark$ |
+| $\big(x \sim p, b(x), \log \lvert\det \mathcal{J}_b(x)\rvert, \log q(y) \big)$ | =forward(q)=            | $\checkmark$ |
+|--------------------------------------------------------------------+-------------------------+--------------|
+
+
+* Comparison
+#+begin_src jupyter-julia :session jl
+using Turing
+
+L = [
+    10 0;
+    10 10
+]
+
+@model demo(x) = begin
+    μ ~ MvNormal(zeros(2), ones(2))
+
+    for i = 1:size(x, 2)
+        x[:, i] ~ MvNormal(μ, L * transpose(L))
+    end
+end
+#+end_src
+
+** Example: 8 schools dataset
+#+begin_src jupyter-julia :session jl :exports code :results none
+using Turing
+
+# data
+ys = Float64.([28, 8, -3, 7, -1, 1, 18, 12])
+σs = Float64.([15, 10, 16, 11, 9, 11, 10, 18])
+
+# model
+@model eight_schools(y, σ) = begin
+    n = length(y)
+    
+    τ ~ Truncated(Cauchy(0, 5), 0, Inf)
+    μ ~ Normal(0, 5)
+
+    θ ~ MvNormal(ones(n) * μ, ones(n) * τ)
+    y ~ MvNormal(θ, σ)
+end
+
+m = eight_schools(ys, σs)
+#+end_src
+
+*** =HMC= and =ADVI=
+#+begin_src jupyter-julia :session jl :exports code
+# HMC
+samples = sample(m, HMC(10000, 0.1, 10))
+
+# ADVI
+advi = ADVI(10, 10000)
+q = vi(m, advi)
+samples_advi = rand(q, 10000);
+#+end_src
+
+#+RESULTS:
+: ┌ Info: Finished 10000 sampling steps in 1.569982444 (s)
+: │   h = Hamiltonian(metric=UnitEuclideanMetric([1.0, 1.0, 1.0, 1.0, 1.0, 1 ...]))
+: │   τ = StaticTrajectory(integrator=Leapfrog(ϵ=0.1), λ=10))
+: │   EBFMI_est = 1557.7643702458263
+: │   average_acceptance_rate = 0.9592029163627042
+: └ @ AdvancedHMC /home/tor/.julia/packages/AdvancedHMC/n85yG/src/sampler.jl:157
+: ┌ Info: [ADVI] Should only be seen once: optimizer created for θ
+: │   objectid(θ) = 16025309464792552139
+: └ @ Turing.Variational /home/tor/.julia/dev/Turing/src/variational/VariationalInference.jl:149
+: [32m[ADVI] Optimizing...  0%  ETA: 7:48:59[39m[32m[ADVI] Optimizing... 23%  ETA: 0:00:14[39m[32m[ADVI] Optimizing... 44%  ETA: 0:00:07[39m[32m[ADVI] Optimizing... 65%  ETA: 0:00:03[39m[32m[ADVI] Optimizing... 86%  ETA: 0:00:01[39m[32m[ADVI] Optimizing...100% Time: 0:00:07[39m
+
+#+begin_src jupyter-julia :session jl :exports results :file figures/eight_schools_hmc_advi.svg
+histogram(log.(samples_advi[1, :]), normed = true, bins = 100, alpha = 0.7)
+density!(log.(samples_advi[1, :]), linewidth = 3)
+histogram!(log.(vec(samples[:τ].value)), normed = true, bins = 100, alpha = 0.5)
+#+end_src
+
+#+RESULTS:
+[[file:figures/eight_schools_hmc_advi.svg]]
+
+*** NF-ADVI
+#+begin_src jupyter-julia :session jl :exports both
+using Turing: Variational
+Variational.elbo(advi, q, m, 1000)
+#+end_src
+
+#+RESULTS:
+: -33.54428894047941
+
+#+begin_src jupyter-julia :session jl
+using LinearAlgebra
+
+using Turing: Variational
+
+using Bijectors: CouplingLayer, PartitionMask, Shift, Scale
+
+using Flux
+using Flux: @treelike, Optimise
+
+@treelike CouplingLayer
+@treelike Composed
+@treelike Shift
+@treelike Scale
+@treelike TransformedDistribution
+
+# TODO: NF-ADVI
+var_info = Turing.VarInfo(m);
+sym2range = Dict()
+ranges = []
+dists = []
+
+start = 0
+
+for k in keys(var_info.metadata)
+    md = var_info.metadata[k]
+    sym_ranges = []
+    
+    for i in 1:length(md.dists)
+        d = md.dists[i]
+        r = md.ranges[i]
+
+        push!(sym_ranges, r .+ start)
+
+        push!(dists, d)
+        push!(ranges, r .+ start)
+        start += r[end]
+    end
+
+    sym2range[k] = sym_ranges
+end
+
+sym2range
+
+bs = inv.(bijector.(tuple(dists...)))
+sb = Stacked(bs, ranges)
+
+# TODO: Define NF
+num_latent = ranges[end][end]
+num_θ = length(vcat(collect.(sym2range[:θ])...))
+b_parameterized = RadialLayer(num_latent)
+
+
+b = (sb ∘ b_parameterized)
+base = MvNormal(zeros(num_latent), ones(num_latent))
+flow = transformed(base, b)
+
+rand(flow)
+
+# Coupling flow
+nn_θ2τ = Chain(Dense(1, 8, relu), Dense(8, 2 * num_θ))
+mask_θ2τ = PartitionMask(
+    num_latent,
+    vcat(collect.(sym2range[:θ])...),
+    vcat(collect.(sym2range[:τ])...),
+    vcat(collect.(sym2range[:μ])...)
+)
+cl_θ2τ = CouplingLayer(θ -> Affine(exp.(θ[1:8]) .+ 0.1, θ[9:16]), mask_θ2τ, nn_θ2τ)
+
+nn_θ2μ = Chain(Dense(1, 8, relu), Dense(8, 2 * num_θ))
+mask_θ2μ = PartitionMask(
+    num_latent,
+    vcat(collect.(sym2range[:θ])...),
+    vcat(collect.(sym2range[:μ])...),
+    vcat(collect.(sym2range[:τ])...)
+)
+
+cl_θ2μ = CouplingLayer(θ -> Affine(exp.(θ[1:8]) .+ 0.1, θ[9:16]), mask_θ2μ, nn_θ2μ)
+
+# Trying it out
+cl_θ2μ(rand(flow))
+(cl_θ2τ ∘ cl_θ2μ)(rand(flow))
+
+# Defining the actual flow
+b = sb ∘ cl_θ2μ ∘ cl_θ2τ
+base = Turing.Core.TuringDiagNormal(zeros(num_latent), ones(num_latent))
+flow = transformed(base, b)
+
+# check that everything works
+logpdf(flow, rand(flow, 10))
+
+x, y, logjac, logq = forward(flow, 3)
+
+# Affine transform
+
+Affine(W, b; dim::Type{Val{N}} = Val{1}) where {N} = Shift(b; dim = Val{N}) ∘ Scale(W; dim = Val{N})
+
+μ̂ = param(randn(num_latent) ./ sqrt(num_latent))
+logσ̂ = param(randn(num_latent) ./ sqrt(num_latent))
+
+
+# So objective is nothing more than
+elbo(q, logjoint, logjac) = mean(logjoint + logjac) + entropy(q)
+
+opt = Variational.DecayedADAGrad(1e-4)
+num_samples = 10
+num_iters = 10_000
+
+using OnlineStats
+elbo_mean = Mean(weight = ExponentialWeight(1e-4))
+
+using ProgressMeter
+prog = ProgressMeter.Progress(num_iters)
+
+for epoch = 1:num_iters
+    aff = Affine(exp.(logσ̂), μ̂)
+    b = sb ∘ cl_θ2μ ∘ cl_θ2τ ∘ aff
+    flow = transformed(base, b)
+    
+    _, y, logjac, _ = forward(flow, num_samples)
+    logjoint = Tracker.collect([Variational.logdensity(m, var_info, y[:, i]) for i = 1:num_samples])
+    
+    obj = - elbo(flow, logjoint, logjac)
+    Tracker.back!(obj, 1.0)
+    # @info Tracker.data(obj)
+
+    ∇_norm = 0.0
+
+    # update params
+    ∇_norm += norm(Tracker.grad(μ̂))
+    Optimise.update!(opt, μ̂, Tracker.grad(μ̂))
+    ∇_norm += norm(Tracker.grad(logσ̂))
+    Optimise.update!(opt, logσ̂, Tracker.grad(logσ̂))
+
+    for p in Flux.params(cl_θ2τ)
+        ∇_norm += norm(Tracker.grad(p))
+        Optimise.update!(opt, p, Tracker.grad(p))
+    end
+
+    for p in Flux.params(cl_θ2μ)
+        ∇_norm += norm(Tracker.grad(p))
+        Optimise.update!(opt, p, Tracker.grad(p))
+    end
+
+    fit!(elbo_mean, -Tracker.data(obj))
+    ProgressMeter.next!(
+        prog;
+        showvalues = [
+            (:elbo, -Tracker.data(obj)),
+            (:elbo_mean, value(elbo_mean)),
+            (:∇_norm, ∇_norm)]
+    )
+end
+
+ẑ = mean(Tracker.data(rand(flow, 100)); dims = 2)
+log(ẑ[1])
+
+zs = hcat([Tracker.data(rand(flow, 1000)) for i = 1:10]...)
+histogram(log.(zs[1, :]))
+
+θ_samples = zs[vec(collect.(sym2range[:θ])...), :]
+mean(θ_samples; dims = 2)
+
+histogram(θ_samples[1, :])
+#+end_src
+
+* Combining EVERYTHING
+** Use case
+- Suppose you have a large dataset $\mathcal{Z} = \left\{ z_i \right\}_{i = 1}^m$
+- Then, in some other setting, maybe just a different experiment, you get observations $\mathcal{X} = \left\{ x_i \right\}_{i = 1}^n$ for some other random variable $x$
+- You have prior knowledge that indeed $x$ depends on $z$, but you're not sure what prior to use for $z$
+
+** Example: selling ice cream /optionally/
+Example: you have two /different/ datasets
+- $\mathcal{Z} := \left\{ z_j \right\}_{j = 1}^m$, locations of the j-th person in some country → $p(z)$ is a "population density"
+- $\mathcal{X} := \left\{ x_i \right\}_{i = 1}^n$, integer labels corresponding to the ice cream vendor from which the i-th person purchased ice cream
+- $m$ and $n$ are not necessarily the same, and these datasets are obtained in two different scenarios, maybe two different days
+
+You own a series of $k$ ice cream parlours on the beach, but this is not enough for you. You want to expand your business into also selling fake sunglasses. You want your sellers to annoyingly walk around and ask people if they want these sunglasses, but obviously you want to make this as efficient as possible.
+
+You have a dataset $\mathcal{X} = \left\{ x_i \right\}_{i = 1}^N$ of ice creams sold, and, you were quite lucky on this one, you found a hacker which could sell you GPS data $\mathcal{Z} = \left\{ z_j \right\}_{j = 1}^M$ of all the people on the beach! Unfortunately this was just a single snapshot of the locations of all the $M$ people on the beach at a single time, but this was in the middle of the day so you think it is a reasonable representation of the location-density.
+
+Unfortunately you have /a lot/ of GPS data but not so much ice cream data. What you would really like to ask is "where are people located when they go and buy ice cream?", or rather, "what is $p(z \mid x = 1)$?". If you knew this, then you could put your on-the-move napkin-salesmen in those high-probability-of-purchasing-ice-cream locations! This way you can be there when they all inevitably need napkins after eating their ice-cream. 
+
+
+*** Approach
+1. Density estimation using $\mathcal{Z}$ to get a population density $p(z)$
+2. Define model for ice cream purchases
+   \begin{equation*}
+   \begin{split}
+     z & \sim \hat{p}(z \mid \mathcal{Z}) \\
+     \pi & := f(z) \\
+     x_i & \sim \mathrm{Categorical}(\pi), \quad i = 1, \dots, n
+   \end{split}
+   \end{equation*}
+   where $f$ maps location $z$ to probabilities over the different ice cream parlors on the beach.
+3. Perform exact inference using a MCMC method, e.g. =ParticleGibbs=
+
+
+** How
+- Maybe you have some highly complex data for which you don't have, nor want to make any, assumptions
+- Can do density estimation of the data using a normalizing flow!
+
+#+begin_src jupyter-julia :session jl
+d = 10
+
+dist = MvNormal(zeros(d), ones(d))
+b = PlanarFlow(d) ∘ RadialFlow(d) ∘ PlanarFlow(d) ∘ RadialFlow(d)
+flow = transformed(dist, b)
+
+# TODO: do density estimation using `flow`
+
+# TODO: define a model which uses the learned `flow`
+@model flow_based(x) = begin
+    z ~ flow
+
+    for i = size(x, 2)
+        x[:, i] ~ MvNormal(z, ones(d))
+    end
+end
+
+
+# TODO: generate data
+m = flow_based(data)
+samples = sample(m, HMC(1000, 0.1, 10); progress = true)
+#+end_src
+
+

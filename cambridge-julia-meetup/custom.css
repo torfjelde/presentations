@@ -1,0 +1,29 @@
+/* body { */
+/*     background-color: grey; */
+/* } */
+
+.reveal {
+    /* color: green; */
+    font-size: 32px;
+}
+
+.reveal h1,
+.reveal h2,
+.reveal h3,
+.reveal h4,
+.reveal h5 {
+    /* color: green; */
+}
+
+.reveal table th, .reveal table td {
+    font-size: 26px;
+    text-align: center;
+}
+
+.reveal blockquote {
+    border-radius: 5px;
+}
+
+.reveal section img {
+    border: 0px;
+}
