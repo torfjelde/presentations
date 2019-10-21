@@ -43,15 +43,19 @@ using Turing
 =Turing.jl= is a (universal) _probabilistic programming language_ (PPL) in Julia.
 #+end_quote
 
+#+ATTR_REVEAL: :frag (appear)
 What does that even mean?
 
+#+ATTR_REVEAL: :frag (appear)
 1. Specify generative model in Julia with neat syntax
 2. Perform Bayesian inference over the latent variables using a vast library of MCMC samplers
 3. ???
 4. Profit!!!
 
 ** Gaussian-InverseGamma conjugate model
+#+ATTR_REVEAL: :frag (appear)
 In mathematical notation:
+#+ATTR_REVEAL: :frag (appear)
 \begin{equation*}
 \begin{split}
   s & \sim \mathrm{InverseGamma}(2, 3) \\
@@ -59,7 +63,10 @@ In mathematical notation:
   x_i & \sim \mathcal{N}(m, \sqrt{s}), \quad i = 1, \dots, n
 \end{split}
 \end{equation*}
+
+#+ATTR_REVEAL: :frag (appear)
 In =Turing.jl=:
+#+ATTR_REVEAL: :frag (appear)
 #+begin_src jupyter-julia :session jl
 @model model(x) = begin
     s ~ InverseGamma(2, 3)
@@ -87,16 +94,20 @@ plot(samples_nuts[[:s, :m]])
 [[./figures/advi_w_elbo_fps15_125_forward_diff.gif]]
 
 * =Bijectors.jl=
+#+ATTR_REVEAL: :frag (appear)
 #+name: def:bijector
 #+begin_definition :title ""
 A *bijector* or *diffeomorphism* is a differentiable /bijection/ $b$ with a /differentiable/ inverse $b^{-1}$.
 #+end_definition
 
-For example
+#+ATTR_REVEAL: :frag (appear)
+For example $b(x) = \exp(x)$
+#+ATTR_REVEAL: :frag (appear)
 - $\exp$ is differentiable
 - $\exp$ has inverse $\log$
 - $\log$ is differentiable (on $(0, \infty)$)
-So $\exp$ is a bijector!
+#+ATTR_REVEAL: :frag (appear)
+So $\exp$ (and $\log$) is a bijector!
 
 #+REVEAL: split
 
@@ -106,7 +117,7 @@ using Pkg; Pkg.activate("/home/tor/.julia/dev/Bijectors")
 
 In =Bijectors.jl=
 
-#+begin_src jupyter-julia :session jl :exports both
+#+begin_src jupyter-julia :session jl :exports both :results none
 using Bijectors; using Bijectors: Exp, Log
 
 b = Exp()
@@ -118,9 +129,10 @@ b⁻¹ isa Log
 #+RESULTS:
 : true
 
+#+HTML: <div class="fragment (appear)">
 We can evaluate a =Bijector=
 
-#+begin_src jupyter-julia :session jl :exports both
+#+begin_src jupyter-julia :session jl :exports both :results none
 x = 0.0
 b(x) == 1.0  # since e⁰ = 1
 #+end_src
@@ -128,14 +140,19 @@ b(x) == 1.0  # since e⁰ = 1
 #+RESULTS:
 : true
 
+#+HTML: </div>
+
+#+HTML: <div class="fragment (appear)">
 We can /compose/ bijectors to get a new =Bijector=
 
-#+begin_src jupyter-julia :session jl :exports both
+#+begin_src jupyter-julia :session jl :exports both :results none
 (b ∘ b) isa Bijector
 #+end_src
 
 #+RESULTS:
 : true
+
+#+HTML: </div>
 
 #+REVEAL: split
 
@@ -148,8 +165,10 @@ And evaluate compositions of bijectors
 #+RESULTS:
 : true
 
+#+ATTR_REVEAL: :frag (appear)
 What about more complex/deeper compositions?
 
+#+HTML: <div class="fragment (appear)">
 #+begin_src jupyter-julia :session jl :exports both
 cb = b ∘ b ∘ b
 cb⁻¹ = inv(cb)        # <= inversion of a "large" composition
@@ -160,10 +179,17 @@ cb⁻¹ = inv(cb)        # <= inversion of a "large" composition
 #+RESULTS:
 : true
 
+#+HTML: </div>
+
+#+HTML: <div class="fragment (appear)">
 We'll see later that of particular interest is the term
+
 \begin{equation*}
 \log \left| \det \mathcal{J}_{b^{-1}}(y) \right| \quad \text{or} \quad \log \left| \det \mathcal{J}_{b}(x) \right|
 \end{equation*}
+#+HTML: </div>
+
+#+HTML: <div class="fragment (appear)">
 Which works seamlessly even for compositions
 
 #+begin_src jupyter-julia :session jl :exports both
@@ -173,18 +199,24 @@ logabsdetjac(cb, x)
 #+RESULTS:
 : 3.718281828459045
 
+#+HTML: </div>
+
 ** How does it relate to distributions?
+Consider
 \begin{equation*}
 x \sim \mathcal{N}(1, 5)
 \end{equation*}
-or, equivalently,
+#+HTML: <div class="fragment (appear)">
+Or, equivalently,
 \begin{equation*}
 \begin{split}
   \xi &\sim \mathcal{N}(0, 1) \\
   x &:= 1 + 5 \xi
 \end{split}
 \end{equation*}
+#+HTML: </div>
 
+#+ATTR_REVEAL: :frag (appear)
 Don't believe me?
 
 #+REVEAL: split
@@ -226,14 +258,20 @@ logpdf(td, y) ≈ logpdf(d1, y)
 #+RESULTS:
 : true
 
+#+ATTR_REVEAL: :frag (appear)
 Moreover, =td= is a =TransformedDistribution= and
 
+#+HTML: <div class="fragment (appear)">
 #+begin_src jupyter-julia :session jl :exports both
 td isa Distribution
 #+end_src
 
 #+RESULTS:
 : true
+
+Yay!
+
+#+HTML: </div>
 
 #+REVEAL: split
 
@@ -254,6 +292,7 @@ Great; just another way to draw samples from a normal distribution...
 
 Or /is it/?
 
+#+HTML: <div class="fragment (appear)">
 #+begin_src jupyter-julia :session jl :exports none
 using Random; Random.seed!(10);
 #+end_src
@@ -281,6 +320,8 @@ xlabel!("y")
 plot!(x_range, lps, linewidth = 3, label = "p(y)")
 #+end_src
 
+#+HTML: </div>
+
 #+REVEAL: split
 #+LaTeX: \clearpage
 
@@ -301,8 +342,12 @@ for a =Bijector= $b$ defines a density $\tilde{p}(y)$
 \begin{equation*}
 \tilde{p}(y) := p \big( b^{-1}(y) \big) \left| \det \mathcal{J}_{b^{-1}}(y) \right|
 \end{equation*}
-Therefore if we can compute $\mathcal{J}_{b^{-1}}(y)$ we have an analytical expression for $\tilde{p}(y)$!
 
+#+HTML: <div class="fragment (appear)">
+Therefore if we can compute $\mathcal{J}_{b^{-1}}(y)$ we have an analytical expression for $\tilde{p}(y)$!
+#+HTML: </div>
+
+#+ATTR_REVEAL: :frag (appear)
 #+begin_quote
 But is this actually useful?
 #+end_quote
@@ -310,19 +355,24 @@ But is this actually useful?
 ** Normalising flows: parameterising $b$
 One might consider constructing a /parameterised/ =Bijector= $b_{\phi}$.
 
+#+HTML: <div class="fragment (appear)">
 Given a density $p(x)$ we can obtain a parameterised density
 \begin{equation*}
 \tilde{p}_{\phi}(y) = p \big( b_{\phi}^{-1}(y) \big) \left| \det \mathcal{J}_{b_{\phi}^{-1}}(y) \right|
 \end{equation*}
+#+HTML: </div>
 
+#+ATTR_REVEAL: :frag (appear)
 #+begin_quote
-$b_{\phi}$ is often referred to as *normalising flow (NF)*
+$b_{\phi}$ is often referred to as a *normalising flow (NF)*
 #+end_quote
 
+#+HTML: <div class="fragment (appear)">
 Can now optimise any objective over distributions, e.g. perform /maximum likelihood estimation/ (MLE) for some given i.i.d. dataset $\left\{ y_i \right\}_{i = 1}^n$
 \begin{equation*}
 \underset{\phi}{\text{argmax}}\ \sum_{i = 1}^{n} \tilde{p}_{\phi}(y_i)
 \end{equation*}
+#+HTML: </div>
 
 *** Example: MLE using NF
 #+begin_src jupyter-julia :session jl :exports code :file figures/nf-mle-estimate.svg
