@@ -9,6 +9,18 @@
 #+AUTHOR: Tor Erlend Fjelde
 #+TITLE: You have data and I have distributions: a talk on =Turing.jl= and =Bijectors.jl=
 
+* Overview
+1. Bayesian inference and density estimation
+   - Why you want to do Bayesian inferenece
+   - What it means to do Bayesian inference
+   - Brief mention of what "density estimation" refers to
+2. Bayesian and approximate inference in =Turing.jl=
+   - Bayesian inference on simple example
+   - =ADVI= on sample example
+3. =Bijectors.jl=: what is it and why do we care?
+4. Normalizing flow VI
+5. Combining EVERYTHING
+
 * Why bother?
 *Goal:* find $\theta$ which maximises the probability of our observations $\left\{ x_i \right\}_{i = 1}^n$
 
