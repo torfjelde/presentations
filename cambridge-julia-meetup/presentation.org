@@ -833,6 +833,204 @@ histogram(θ_samples[1, :])
 #+end_src
 
 * Combining EVERYTHING
+** Simple multivariate Gaussian
+#+begin_src jupyter-julia :session jl-nf-advi :exports none :results none
+# SETUP
+using Flux
+using Flux: Optimise
+using LinearAlgebra, Random
+using StatsFuns: softplus
+
+using ProgressMeter
+
+using Bijectors
+using Bijectors: Shift, Scale, CouplingLayer, PartitionMask
+
+using Plots, StatsPlots
+
+using ForwardDiff
+
+using Turing
+using Turing: Variational
+using Turing.Core: TuringDiagNormal
+
+using Logging
+
+rng = Random.seed!(1)
+
+# Variational inference stuff
+Affine(W, b; dim::Type{Val{N}} = Val{1}) where {N} = Shift(b; dim = Val{N}) ∘ Scale(W; dim = Val{N})
+g(θ) = Affine(exp(θ[1]) + 0.1, θ[2]; dim = Val{1})
+
+function build_bijector(θ)
+    σ = exp.(θ[1:2]) .+ 0.01
+    μ = θ[3:4]
+
+    W1 = reshape(θ[5:6], (2, 1))
+    b1 = θ[7:8]
+    W2 = reshape(θ[9:12], (2, 2))
+    b2 = θ[13:14]
+
+    nn1 = Chain(Dense(W1, b1, relu), Dense(W2, b2))
+
+    W1 = reshape(θ[15:16], (2, 1))
+    b1 = θ[17:18]
+    W2 = reshape(θ[19:22], (2, 2))
+    b2 = θ[23:24]
+
+    nn2 = Chain(Dense(W1, b1, relu), Dense(W2, b2))
+
+    mask1 = PartitionMask(2, [2], [1], nothing)
+    cl1 = CouplingLayer(g, mask1, nn1)
+    
+    mask2 = PartitionMask(2, [1], [2], nothing)
+    cl2 = CouplingLayer(g, mask2, nn2)
+
+    return cl2 ∘ cl1 ∘ Affine(σ, μ)
+end
+
+# Posterior
+L = [1. 0.; 1. 1.] .* 10
+prior = MvNormal(zeros(2), ones(2))
+likelihood = MvNormal(zeros(2), L * L')
+
+# Data
+n = 100
+xs = rand(likelihood, n)
+
+Σ = inv(inv(prior.Σ) + n * inv(likelihood.Σ))
+μ = vec(Σ * (inv(prior.Σ) * prior.μ + n * inv(likelihood.Σ) * mean(xs; dims = 2)))
+posterior = MvNormal(μ, Σ)
+
+samples_posterior = rand(posterior, 1000)
+
+# Turing model
+@model gaussian(xs) = begin
+    μ ~ prior
+
+    for i = 1:size(xs, 2)
+        xs[:, i] ~ MvNormal(μ, L * L')
+    end
+end
+
+m = gaussian(xs)
+
+# NF
+BATCH_SIZE = 50
+NUM_OPT_STEPS = 5_000
+
+function f(θ)
+    b = build_bijector(θ)
+    q = transformed(base, b)
+
+    z₀, zₖ, logjac, logq = forward(q, BATCH_SIZE)
+    lp = [Variational.logdensity(m, var_info, zₖ[:, i]) for i = 1:BATCH_SIZE]
+    return - mean(lp + logjac) #ELBO
+end
+
+# optimize
+opt = Variational.DecayedADAGrad(1e-3)
+
+steps_taken = 0
+prog = ProgressMeter.Progress(NUM_OPT_STEPS)
+
+# initial ELBO
+b = build_bijector(θ)
+q = transformed(base, b)
+
+z₀, zₖ, logjac, logq = forward(q, 100)
+prev_logq = mean(logq)
+prev_logjac = mean(logjac)
+
+logp = logpdf(posterior, zₖ)
+prev_logp = mean(logp)
+
+logjoint = [Variational.logdensity(m, var_info, zₖ[:, i]) for i = 1:size(zₖ, 2)]
+prev_logjoint = mean(logjoint)
+
+prev_kl = mean(logq - logjoint)
+prev_elbo = mean(logjoint + logjac) + entropy(q)
+
+
+for i = 1:NUM_OPT_STEPS
+    Δ = ForwardDiff.gradient(f, θ)
+
+    ∇_norm = norm(Δ)
+    Optimise.apply!(opt, θ, Δ)
+
+    θ = θ .- Δ
+
+    if i % 10 == 0
+        b = build_bijector(θ)
+        q = transformed(base, b)
+
+        z₀, zₖ, logjac, logq = forward(q, 100)
+        prev_logq = mean(logq)
+        prev_logjac = mean(logjac)
+        logp = logpdf(posterior, zₖ)
+        prev_logp = mean(logp)
+        
+        prev_kl = mean(logq - logp)
+
+        logjoint = [Variational.logdensity(m, var_info, zₖ[:, i]) for i = 1:100]
+        prev_logjoint = mean(logjoint)
+        prev_elbo = mean(logjoint + logjac) + entropy(q)
+
+        with_logger(lg) do
+            @info "" kl=prev_kl elbo=prev_elbo logposterior=prev_logp logjoint=prev_logjoint logq=prev_logq logjac=prev_logjac log_step_increment=0
+        end
+    end
+
+    with_logger(lg) do
+        @info "" ∇_norm Δ_norm=norm(Δ)  log_step_increment=1
+    end
+
+    ProgressMeter.next!(
+        prog;
+        showvalues = [
+            (:kl, prev_kl),
+            (:elbo, prev_elbo),
+            (:∇_norm, ∇_norm),
+            (:prev_logjac, prev_logjac),
+            (:prev_logp, prev_logp),
+            (:prev_logjoint, prev_logjoint),
+            (:prev_logq, prev_logq)
+        ]
+    )
+end
+θ_elbo = copy(θ)
+b = build_bijector(θ_elbo)
+q_nf_elbo = transformed(base, b)
+samples_nf_elbo = rand(q_nf_elbo, 1000)
+#+end_src
+
+#+begin_src jupyter-julia jupyter-julia :session jl
+flow # <= flow from earlier
+
+L = [
+    10 0;
+    10 10
+]
+
+@model flow_demo(x) = begin
+    μ ~ flow # <= NF-ADVI applied to `MvNormal`
+
+    for i = 1:size(x, 2)
+        x[:, i] ~ MvNormal(μ, L * transpose(L))
+    end
+end
+
+# Data generation
+n = 100
+μ_true = ones(2)  # <= different from original problem
+likelihood = MvNormal(μ_true, L * transpose(L))
+xs = rand(likelihood, n)
+
+# Sample
+m = flow_demo(xs)
+samples = sample(m, NUTS(1_000, 200, 0.65));
+#+end_src
+
 ** Use case
 - Suppose you have a large dataset $\mathcal{Z} = \left\{ z_i \right\}_{i = 1}^m$
 - Then, in some other setting, maybe just a different experiment, you get observations $\mathcal{X} = \left\{ x_i \right\}_{i = 1}^n$ for some other random variable $x$
@@ -892,5 +1090,4 @@ end
 m = flow_based(data)
 samples = sample(m, HMC(1000, 0.1, 10); progress = true)
 #+end_src
-
 
