@@ -95,6 +95,9 @@ using Plots, StatsPlots
 
 #+begin_src jupyter-julia :session jl :results silent :exports none :async yes
 using Pkg; Pkg.activate("/home/tor/.julia/dev/Bijectors")
+#+end_src
+
+#+begin_src jupyter-julia :session jl :exports code :async yes
 using Bijectors
 #+end_src
 
@@ -585,8 +588,7 @@ file:figures/nf-banana-density-estimation.gif
 |--------------------------------------------------------------------+-------------------------+--------------|
 
 
-* Comparison
-** NF-ADVI vs. MF-ADVI
+* NF-ADVI vs. MF-ADVI
 Consider $L = \begin{pmatrix} 10 & 0 \\ 10 & 10 \end{pmatrix}$ and
 \begin{equation*}
 \begin{split}
@@ -617,7 +619,8 @@ end
 
 #+HTML: </div>
 
-*** Visualized
+#+REVEAL: split
+
 #+HTML: <div id="mvnormal-comparison">
 
 #+CAPTION: True posterior
@@ -638,247 +641,7 @@ file:figures/mvnormal-1-nfvi-elbo-affine.png
 
 #+HTML: </div>
 
-** Example: 8 schools dataset
-#+begin_src jupyter-julia :session jl :exports code :results none
-using Turing
-
-# data
-ys = Float64.([28, 8, -3, 7, -1, 1, 18, 12])
-σs = Float64.([15, 10, 16, 11, 9, 11, 10, 18])
-
-# model
-@model eight_schools(y, σ) = begin
-    n = length(y)
-    
-    τ ~ Truncated(Cauchy(0, 5), 0, Inf)
-    μ ~ Normal(0, 5)
-
-    θ ~ MvNormal(ones(n) * μ, ones(n) * τ)
-    y ~ MvNormal(θ, σ)
-end
-
-m = eight_schools(ys, σs)
-#+end_src
-
-*** =NUTS= and =ADVI=
-#+begin_src jupyter-julia :session jl :exports code
-# HMC
-initial_samples = 200
-samples = sample(m, NUTS(10_000 + initial_samples, initial_samples, 0.65))
-
-# ADVI
-advi = ADVI(10, 10_000)
-q = vi(m, advi)
-samples_advi = rand(q, 10_000);
-#+end_src
-
-#+RESULTS:
-#+BEGIN_EXAMPLE
-┌ Info: Found initial step size
-│   init_ϵ = 0.8
-└ @ Turing.Inference /home/tor/.julia/dev/Turing/src/inference/hmc.jl:365
-┌ Info: Finished 200 adapation steps
-│   adaptor = StanHMCAdaptor(n_adapts=200, pc=DiagPreconditioner, ssa=NesterovDualAveraging(γ=0.05, t_0=10.0, κ=0.75, δ=0.65, state.ϵ=0.22697565000809314), init_buffer=75, term_buffer=50)
-│   τ.integrator = Leapfrog(ϵ=0.227)
-│   h.metric = DiagEuclideanMetric([0.446261, 7.38653, 10.5031 ...])
-└ @ AdvancedHMC /home/tor/.julia/packages/AdvancedHMC/n85yG/src/sampler.jl:145
-┌ Info: Finished 10200 sampling steps in 7.147655536 (s)
-│   h = Hamiltonian(metric=DiagEuclideanMetric([0.446261, 7.38653, 10.5031 ...]))
-│   τ = NUTS{Multinomial,Generalised}(integrator=Leapfrog(ϵ=0.227), max_depth=10), Δ_max=1000.0)
-│   EBFMI_est = 2372.3111561255632
-│   average_acceptance_rate = 0.7981437762406471
-└ @ AdvancedHMC /home/tor/.julia/packages/AdvancedHMC/n85yG/src/sampler.jl:157
-┌ Info: [ADVI] Should only be seen once: optimizer created for θ
-│   objectid(θ) = 2629648457811964606
-└ @ Turing.Variational /home/tor/.julia/dev/Turing/src/variational/VariationalInference.jl:149
-[32m[ADVI] Optimizing...  0%  ETA: 7:49:36[39m[32m[ADVI] Optimizing... 26%  ETA: 0:00:12[39m[32m[ADVI] Optimizing... 47%  ETA: 0:00:06[39m[32m[ADVI] Optimizing... 69%  ETA: 0:00:03[39m[32m[ADVI] Optimizing... 90%  ETA: 0:00:01[39m[32m[ADVI] Optimizing...100% Time: 0:00:07[39m
-#+END_EXAMPLE
-
-#+begin_src jupyter-julia :session jl :exports results :file figures/eight_schools_hmc_advi.svg
-histogram(log.(samples_advi[1, :]), normed = true, bins = 100, alpha = 0.7, label = "ADVI")
-density!(log.(samples_advi[1, :]), linewidth = 3, label = "")
-histogram!(log.(vec(samples[:τ].value)), normed = true, bins = 100, alpha = 0.5, label = "NUTS")
-#+end_src
-
-#+RESULTS:
-[[file:figures/eight_schools_hmc_advi.svg]]
-
-*** NF-ADVI
-#+begin_src jupyter-julia :session jl :exports both
-using Turing: Variational
-Variational.elbo(advi, q, m, 1000)
-#+end_src
-
-#+RESULTS:
-: -33.54428894047941
-
-#+begin_src jupyter-julia :session jl
-using LinearAlgebra
-
-using Turing: Variational
-
-using Bijectors: CouplingLayer, PartitionMask, Shift, Scale
-
-using Flux
-using Flux: @treelike, Optimise
-
-@treelike CouplingLayer
-@treelike Composed
-@treelike Shift
-@treelike Scale
-@treelike TransformedDistribution
-
-# TODO: NF-ADVI
-var_info = Turing.VarInfo(m);
-sym2range = Dict()
-ranges = []
-dists = []
-
-start = 0
-
-for k in keys(var_info.metadata)
-    md = var_info.metadata[k]
-    sym_ranges = []
-    
-    for i in 1:length(md.dists)
-        d = md.dists[i]
-        r = md.ranges[i]
-
-        push!(sym_ranges, r .+ start)
-
-        push!(dists, d)
-        push!(ranges, r .+ start)
-        start += r[end]
-    end
-
-    sym2range[k] = sym_ranges
-end
-
-sym2range
-
-bs = inv.(bijector.(tuple(dists...)))
-sb = Stacked(bs, ranges)
-
-# TODO: Define NF
-num_latent = ranges[end][end]
-num_θ = length(vcat(collect.(sym2range[:θ])...))
-b_parameterized = RadialLayer(num_latent)
-
-
-b = (sb ∘ b_parameterized)
-base = MvNormal(zeros(num_latent), ones(num_latent))
-flow = transformed(base, b)
-
-rand(flow)
-
-# Coupling flow
-nn_θ2τ = Chain(Dense(1, 8, relu), Dense(8, 2 * num_θ))
-mask_θ2τ = PartitionMask(
-    num_latent,
-    vcat(collect.(sym2range[:θ])...),
-    vcat(collect.(sym2range[:τ])...),
-    vcat(collect.(sym2range[:μ])...)
-)
-cl_θ2τ = CouplingLayer(θ -> Affine(exp.(θ[1:8]) .+ 0.1, θ[9:16]), mask_θ2τ, nn_θ2τ)
-
-nn_θ2μ = Chain(Dense(1, 8, relu), Dense(8, 2 * num_θ))
-mask_θ2μ = PartitionMask(
-    num_latent,
-    vcat(collect.(sym2range[:θ])...),
-    vcat(collect.(sym2range[:μ])...),
-    vcat(collect.(sym2range[:τ])...)
-)
-
-cl_θ2μ = CouplingLayer(θ -> Affine(exp.(θ[1:8]) .+ 0.1, θ[9:16]), mask_θ2μ, nn_θ2μ)
-
-# Trying it out
-cl_θ2μ(rand(flow))
-(cl_θ2τ ∘ cl_θ2μ)(rand(flow))
-
-# Defining the actual flow
-b = sb ∘ cl_θ2μ ∘ cl_θ2τ
-base = Turing.Core.TuringDiagNormal(zeros(num_latent), ones(num_latent))
-flow = transformed(base, b)
-
-# check that everything works
-logpdf(flow, rand(flow, 10))
-
-x, y, logjac, logq = forward(flow, 3)
-
-# Affine transform
-
-Affine(W, b; dim::Type{Val{N}} = Val{1}) where {N} = Shift(b; dim = Val{N}) ∘ Scale(W; dim = Val{N})
-
-μ̂ = param(randn(num_latent) ./ sqrt(num_latent))
-logσ̂ = param(randn(num_latent) ./ sqrt(num_latent))
-
-
-# So objective is nothing more than
-elbo(q, logjoint, logjac) = mean(logjoint + logjac) + entropy(q)
-
-opt = Variational.DecayedADAGrad(1e-4)
-num_samples = 10
-num_iters = 10_000
-
-using OnlineStats
-elbo_mean = Mean(weight = ExponentialWeight(1e-4))
-
-using ProgressMeter
-prog = ProgressMeter.Progress(num_iters)
-
-for epoch = 1:num_iters
-    aff = Affine(exp.(logσ̂), μ̂)
-    b = sb ∘ cl_θ2μ ∘ cl_θ2τ ∘ aff
-    flow = transformed(base, b)
-    
-    _, y, logjac, _ = forward(flow, num_samples)
-    logjoint = Tracker.collect([Variational.logdensity(m, var_info, y[:, i]) for i = 1:num_samples])
-    
-    obj = - elbo(flow, logjoint, logjac)
-    Tracker.back!(obj, 1.0)
-    # @info Tracker.data(obj)
-
-    ∇_norm = 0.0
-
-    # update params
-    ∇_norm += norm(Tracker.grad(μ̂))
-    Optimise.update!(opt, μ̂, Tracker.grad(μ̂))
-    ∇_norm += norm(Tracker.grad(logσ̂))
-    Optimise.update!(opt, logσ̂, Tracker.grad(logσ̂))
-
-    for p in Flux.params(cl_θ2τ)
-        ∇_norm += norm(Tracker.grad(p))
-        Optimise.update!(opt, p, Tracker.grad(p))
-    end
-
-    for p in Flux.params(cl_θ2μ)
-        ∇_norm += norm(Tracker.grad(p))
-        Optimise.update!(opt, p, Tracker.grad(p))
-    end
-
-    fit!(elbo_mean, -Tracker.data(obj))
-    ProgressMeter.next!(
-        prog;
-        showvalues = [
-            (:elbo, -Tracker.data(obj)),
-            (:elbo_mean, value(elbo_mean)),
-            (:∇_norm, ∇_norm)]
-    )
-end
-
-ẑ = mean(Tracker.data(rand(flow, 100)); dims = 2)
-log(ẑ[1])
-
-zs = hcat([Tracker.data(rand(flow, 1000)) for i = 1:10]...)
-histogram(log.(zs[1, :]))
-
-θ_samples = zs[vec(collect.(sym2range[:θ])...), :]
-mean(θ_samples; dims = 2)
-
-histogram(θ_samples[1, :])
-#+end_src
-
-* Combining EVERYTHING
+* Combine _EVERYTHING_
 
 ** Simple non-diagonal Gaussian (cont.)
 
@@ -1089,7 +852,7 @@ xs = rand(likelihood, n)
 
 #+HTML: <div class="fragment (appear)">
 
-And add the normalizing flow variational posterior from before as a prior
+And add the normalizing flow variational posterior from before as a /prior/
 
 #+begin_src jupyter-julia jupyter-julia :session jl-nf-advi :exports code
 @model flow_demo(x) = begin
@@ -1195,65 +958,151 @@ contour!(x_range, y_range, (x, y) -> pdf(posterior, [x, y]), label = "Posterior"
 
 #+HTML: </div>
 
-** Use case
-- Suppose you have a large dataset $\mathcal{Z} = \left\{ z_i \right\}_{i = 1}^m$
-- Then, in some other setting, maybe just a different experiment, you get observations $\mathcal{X} = \left\{ x_i \right\}_{i = 1}^n$ for some other random variable $x$
-- You have prior knowledge that indeed $x$ depends on $z$, but you're not sure what prior to use for $z$
+** Optimal napkin selling
+- You own =k= ice-cream parlours on a beach
+- Business is going well → want to expand & diversify
 
-** Example: selling ice cream /optionally/
-Example: you have two /different/ datasets
-- $\mathcal{Z} := \left\{ z_j \right\}_{j = 1}^m$, locations of the j-th person in some country → $p(z)$ is a "population density"
-- $\mathcal{X} := \left\{ x_i \right\}_{i = 1}^n$, integer labels corresponding to the ice cream vendor from which the i-th person purchased ice cream
-- $m$ and $n$ are not necessarily the same, and these datasets are obtained in two different scenarios, maybe two different days
+#+REVEAL: split
 
-You own a series of $k$ ice cream parlours on the beach, but this is not enough for you. You want to expand your business into also selling fake sunglasses. You want your sellers to annoyingly walk around and ask people if they want these sunglasses, but obviously you want to make this as efficient as possible.
-
-You have a dataset $\mathcal{X} = \left\{ x_i \right\}_{i = 1}^N$ of ice creams sold, and, you were quite lucky on this one, you found a hacker which could sell you GPS data $\mathcal{Z} = \left\{ z_j \right\}_{j = 1}^M$ of all the people on the beach! Unfortunately this was just a single snapshot of the locations of all the $M$ people on the beach at a single time, but this was in the middle of the day so you think it is a reasonable representation of the location-density.
-
-Unfortunately you have /a lot/ of GPS data but not so much ice cream data. What you would really like to ask is "where are people located when they go and buy ice cream?", or rather, "what is $p(z \mid x = 1)$?". If you knew this, then you could put your on-the-move napkin-salesmen in those high-probability-of-purchasing-ice-cream locations! This way you can be there when they all inevitably need napkins after eating their ice-cream. 
-
-
-*** Approach
-1. Density estimation using $\mathcal{Z}$ to get a population density $p(z)$
-2. Define model for ice cream purchases
-   \begin{equation*}
-   \begin{split}
-     z & \sim \hat{p}(z \mid \mathcal{Z}) \\
-     \pi & := f(z) \\
-     x_i & \sim \mathrm{Categorical}(\pi), \quad i = 1, \dots, n
-   \end{split}
-   \end{equation*}
-   where $f$ maps location $z$ to probabilities over the different ice cream parlors on the beach.
-3. Perform exact inference using a MCMC method, e.g. =ParticleGibbs=
+#+ATTR_REVEAL: :frag (appear)
+- _Genius idea #1:_ /on-the-move napkin salesmen/
+- Issue #1: what should the "napkin-route" be?
+- You do have observations of which parlour people bought ice-cream at
+  - E.g. $x_i = 1$ if the i-th customer bought ice cream at Parlour #1
+- _Genius idea #2:_ Bayesian inference to get $p\big(\text{location} \mid \left\{ x_i \right\}_{i = 1}^n \big)$
+  - Use posterior to decide where to define the napkin-route
+  - Generative model is
+    \begin{equation*}
+    \begin{split}
+      \mathrm{loc}_i &\sim p(\text{location}) \\
+      \pi_i &:= f(\mathrm{loc}_i) \\
+      x_i &\sim \mathrm{Categorical}(\pi_i), \quad i = 1, \dots, n
+    \end{split}
+    \end{equation*}
+    where $f$ maps the location to some probability vector.
+- Issue #2: need a prior for beach-people's locations
+- _Genius idea #3:_ get hacker friend to hack everyone's phones to obtain location data, then perform density estimation on this location data to get a /prior/ over the locations.
 
 
-** How
-- Maybe you have some highly complex data for which you don't have, nor want to make any, assumptions
-- Can do density estimation of the data using a normalizing flow!
+#+REVEAL: split
 
+#+CAPTION: Beach plot. =locations= (yellow) refer to samples from the location prior (density estimated using normalizing flow). The blue part represents the sea, and the black part represents land which is /not/ part of the beach so we don't care about it.
+file:figures/ice-cream/beach_annotated.svg
+
+#+REVEAL: split
+
+#+CAPTION: Beach prior.
+file:figures/ice-cream/prior_10000_1000.svg
+
+*** Observations & model
+
+Generate fake data (most people buy from Parlour #1)
 #+begin_src jupyter-julia :session jl
-d = 10
-
-dist = MvNormal(zeros(d), ones(d))
-b = PlanarFlow(d) ∘ RadialFlow(d) ∘ PlanarFlow(d) ∘ RadialFlow(d)
-flow = transformed(dist, b)
-
-# TODO: do density estimation using `flow`
-
-# TODO: define a model which uses the learned `flow`
-@model flow_based(x) = begin
-    z ~ flow
-
-    for i = size(x, 2)
-        x[:, i] ~ MvNormal(z, ones(d))
-    end
-end
-
-
-# TODO: generate data
-m = flow_based(data)
-samples = sample(m, HMC(1000, 0.1, 10); progress = true)
+fake_samples = [1, 2, 1, 1, 1, 1, 1, 2, 2, 1, 2, 1, 1, 2, 2, 1]
+num_fake_samples = length(fake_samples)
 #+end_src
 
+#+HTML: <div class="fragment (appear)">
+
+Define a =Model= which uses a NF as prior
+
+#+begin_src jupyter-julia :session jl
+@model napkin_model(x, ::Type{TV} = Vector{Float64}) where {TV} = begin
+    locs = Vector{TV}(undef, length(x))
+    
+    for i ∈ eachindex(x)
+        # We sample from the original distribution then transform to help NUTS.
+        # Could equivalently have done `locs[i] ~ td` but more difficult to sample from.
+        locs[i] ~ td.dist
+        loc = td.transform(locs[i])
+
+        # Compute a notion of "distance" from `loc` to the two different ice-cream parlours
+        d1 = exp(- norm(parlour1 - loc))
+        d2 = exp(- norm(parlour2 - loc))
+
+        # The closer `loc` is to a ice-cream parlour, the more likely customer at `loc`
+        # will buy from that instead of the other.
+        πs = [d1 / (d1 + d2), d2 / (d1 + d2)]
+        
+        x[i] ~ Categorical(πs)
+    end
+end
+#+end_src
+
+#+HTML: </div>
+
+#+begin_src jupyter-julia :session jl :exports none
+# Example of πs
+locs = rand(td, 10)
+d1 = exp.(- [norm(parlour1 - locs[:, i]) for i = 1:size(locs, 2)])
+d2 = exp.(- [norm(parlour2 - locs[:, i]) for i = 1:size(locs, 2)])
+ds = hcat(d1, d2)
+πs = ds ./ sum(ds; dims = 2)
+#+end_src
+
+#+REVEAL: split
+
+Bayesian inference time
+
+#+begin_src jupyter-julia :session jl
+# Instantiate model
+m = napkin_model(fake_samples)
+
+# Sample using NUTS
+num_mcmc_samples = 10_000
+mcmc_warmup = 1_000
+samples = sample(m, NUTS(num_mcmc_samples + mcmc_warmup, mcmc_warmup, 0.65));
+#+end_src
+
+#+begin_src jupyter-julia :session jl :exports none :results none
+posterior_locs_samples = reshape(samples[:locs].value[:, :, 1], (:, num_fake_samples, 2))
+
+x_samples = rand(td, 10_000)
+
+# CHECK ONE OF THE CUSTOMERS
+
+customer_idx = rand(1:num_fake_samples)
+# Transform because samples will be untransformed
+posterior_locs_idx = td.transform(posterior_locs_samples[:, customer_idx, :]')
+
+posterior_locs_idx = td.transform(reshape(posterior_locs_samples, (:, 2))')
+
+mean_locs = mean(posterior_locs_idx; dims = 2)
+std_locs = std(posterior_locs_idx; dims = 2)
+
+p1 = scatter(x_samples[1, :], x_samples[2, :], label = "locations", markerstrokewidth = 0, color = :orange, alpha = 0.3)
+
+xlims!(-10.0, 30.0)
+ylims!(-15.0, 15.0)
+
+# scatter!(mean_locs[1:1], mean_locs[2:2], xerr = std_locs[1:1], yerr = std_locs[2:2], label = "")
+
+histogram2d!(posterior_locs_idx[1, :], posterior_locs_idx[2, :], bins = 100, normed = true, alpha = 0.8, color = cgrad(:viridis))
+title!("Posterior")
+
+scatter!(parlour1[1:1], parlour1[2:2], label = "Parlour #1", color = :red, markersize = 5)
+scatter!(parlour2[1:1], parlour2[2:2], label = "Parlour #2", color = :blue, markersize = 5)
+
+p2 = scatter(x_samples[1, :], x_samples[2, :], label = "locations", markerstrokewidth = 0, color = :orange, alpha = 0.3)
+
+xlims!(-10.0, 30.0)
+ylims!(-15.0, 15.0)
+
+histogram2d!(x_samples[1, :], x_samples[2, :]; bins = 100, normed = true, alpha = 0.8, color = cgrad(:viridis))
+title!("Prior")
+
+scatter!(parlour1[1:1], parlour1[2:2], label = "Parlour #1", color = :red, markersize = 5)
+scatter!(parlour2[1:1], parlour2[2:2], label = "Parlour #2", color = :blue, markersize = 5)
+
+plot(p1, p2, layout = (2, 1), size = (500, 1000))
+#+end_src
+
+#+HTML: <div class="fragment (appear">
+
+#+CAPTION: Beach posterior.
+file:figures/ice-cream/posterior_10000_1000.svg
+
+#+HTML: </div>
+
 * Thank you!
-#+HTML: <div class="fragment (appear)"><div><code>TuringLang</code> (website): <a href="https://turing.ml">https://turing.ml</a></div><div><code>TuringLang</code> (Github): <a href="https://github.com/TuringLang">https://github.com/TuringLang</a></div><div><code>Turing.jl</code> (Github): <a href="https://github.com/TuringLang/Turing.jl">https://github.com/TuringLang/Turing.jl</a></div><div><code>Bijectors.jl</code> (Github): <a href="https://github.com/TuringLang/Bijectors.jl">https://github.com/TuringLang/Bijectors.jl</a></div></div>
+#+HTML: <div><div><code>TuringLang</code> (website): <a href="https://turing.ml">https://turing.ml</a></div><div><code>TuringLang</code> (Github): <a href="https://github.com/TuringLang">https://github.com/TuringLang</a></div><div><code>Turing.jl</code> (Github): <a href="https://github.com/TuringLang/Turing.jl">https://github.com/TuringLang/Turing.jl</a></div><div><code>Bijectors.jl</code> (Github): <a href="https://github.com/TuringLang/Bijectors.jl">https://github.com/TuringLang/Bijectors.jl</a></div></div>
