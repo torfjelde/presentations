@@ -148,13 +148,20 @@ end
 #+RESULTS:
 : model (generic function with 2 methods)
 
-** Exact inference: No U-turn Sampler (NUTS)
-=NUTS= is a MCMC methods which generally works well with minimal tuning
+#+REVEAL: split
+
+Generate some fake data and instantiate the model
 
 #+begin_src jupyter-julia :session jl :exports code
 xs = randn(1_000)
 m = model(xs)
+#+end_src
 
+#+HTML: <div class="fragment (appear)">
+
+Now sample to obtain posterior $p\big(m, s \mid \left\{ x_i \right\}_{i = 1}^n \big)$
+
+#+begin_src jupyter-julia :session jl :exports code
 # Sample 1000 samples using HMC
 samples_nuts = sample(m, NUTS(10_000, 200, 0.65));
 #+end_src
@@ -177,6 +184,8 @@ samples_nuts = sample(m, NUTS(10_000, 200, 0.65));
 └ @ AdvancedHMC /home/tor/.julia/packages/AdvancedHMC/n85yG/src/sampler.jl:157
 #+END_EXAMPLE
 
+#+HTML: </div>
+
 #+HTML: <div class="fragment (appear)">
 
 Aaaand we can plot the resulting (empirical) posterior
@@ -192,7 +201,7 @@ plot(samples_nuts[[:s, :m]])
 [[file:figures/gaussian-inversegamma-hmc.svg]]
 
 ** *Approximate* inference (Variational inference)
-Sometimes you might be happy with an /approximation/ to your posterior $p \big( \theta \mid \left\{ x_i \right\}_{i = 1}^n \big)$.
+Might be happy with an /approximation/ to your posterior $p \big( \theta \mid \left\{ x_i \right\}_{i = 1}^n \big)$.
 
 #+HTML: <div class="fragment (appear)">
 
@@ -200,7 +209,7 @@ Sometimes you might be happy with an /approximation/ to your posterior $p \big( 
 #+HTML: </div>
 #+HTML: <div class="fragment (appear)">
 \begin{equation*}
-\underset{q}{\text{argmax}}\ \mathrm{ELBO} \big( q(\theta) \big) \quad \text{or} \quad \underset{q}{\text{argmin}}\ \mathrm{D_{KL}} \big( q(\theta) \mid p(\theta \mid \left\{ x_i \right\}_{i = 1}^n ) \big)
+\underset{q \in \mathscr{Q}}{\text{argmin}}\ \mathrm{D_{KL}} \big( q(\theta) \mid p(\theta \mid \left\{ x_i \right\}_{i = 1}^n ) \big) \quad \text{or} \quad \underset{q \in \mathscr{Q}}{\text{argmax}}\ \mathrm{ELBO} \big( q(\theta) \big)
 \end{equation*}
 where
 \begin{equation*}
@@ -210,7 +219,7 @@ where
 #+HTML: </div>
 
 *** Automatic Differentiation Variational Inference (ADVI)
-ADVI is a simple but flexible VI approach that exists in =Turing.jl=
+(Mean-field) ADVI is a simple but flexible VI approach that exists in =Turing.jl=
 #+begin_src jupyter-julia :session jl :results none :exports code
 # "Configuration" for ADVI
 # - 10 samples for gradient estimation
@@ -366,11 +375,12 @@ using Random; Random.seed!(42)
 #+end_src
 
 #+begin_src jupyter-julia :session jl :exports code :file figures/normal-pdfs.svg :results none
-d1 = Normal(1.0, 5.0)                # 𝒩(1, 5)
+d1 = Normal(1.0, 5.0) # 𝒩(1, 5)
 xs = rand(d1, 100_000)
 
-d2 = Normal(0.0, 1.0)                # 𝒩(0, 1)
-ys = 1.0 .+ rand(d2, 100_000) .* 5.0 # => y ~ 𝒩(1, 5)
+d2 = Normal(0.0, 1.0) # 𝒩(0, 1)
+ξ = rand(d2, 100_000)
+ys = 1.0 .+ ξ .* 5.0  # y ~ 𝒩(1, 5)
 
 density(xs, label = "d1", linewidth = 3)
 density!(ys, label = "d2", linewidth = 3)
@@ -383,20 +393,13 @@ density!(ys, label = "d2", linewidth = 3)
 In =Bijectors.jl= we define transformations which _induce_ distributions
 
 #+HTML: <div class="fragment (appear)">
-#+begin_src jupyter-julia :session jl :exports both
+#+begin_src jupyter-julia :session jl :exports both :exports code
 using Bijectors: Shift, Scale
 
 # Define the transform
 b = Shift(1.0) ∘ Scale(5.0) # => x ↦ 1.0 + 5.0x
 td = transformed(d2, b)     # => 𝒩(1.0, 5.0)
-
-y = rand(td)
-# Ensure we have the same densities
-logpdf(td, y) ≈ logpdf(d1, y)
 #+end_src
-
-#+RESULTS:
-: true
 
 #+HTML: </div>
 
@@ -412,6 +415,19 @@ td isa Distribution
 : true
 
 Yay!
+
+#+HTML: </div>
+
+#+HTML: <div class="fragment (appear)">
+
+#+begin_src jupyter-julia :session jl :exports both
+y = rand(td)
+# Ensure we have the same densities
+logpdf(td, y) ≈ logpdf(d1, y)
+#+end_src
+
+#+RESULTS:
+: true
 
 #+HTML: </div>
 
@@ -589,6 +605,8 @@ file:figures/nf-banana-density-estimation.gif
 
 
 * NF-ADVI vs. MF-ADVI
+#+HTML: <div class="fragment (appear)">
+
 Consider $L = \begin{pmatrix} 10 & 0 \\ 10 & 10 \end{pmatrix}$ and
 \begin{equation*}
 \begin{split}
@@ -596,6 +614,8 @@ Consider $L = \begin{pmatrix} 10 & 0 \\ 10 & 10 \end{pmatrix}$ and
   x_i & \overset{i.i.d.}{=} \mathcal{N}(m, L L^T) \quad i = 1, \dots, n
 \end{split}
 \end{equation*}
+
+#+HTML: </div>
 
 #+HTML: <div class="fragment (appear)">
 
@@ -618,6 +638,18 @@ end
 #+end_src
 
 #+HTML: </div>
+
+#+REVEAL: split
+
+Generate =n = 100= samples with true mean =μ = [0.0, 0.0]=
+
+#+begin_src jupyter-julia :session jl
+# Data generation
+n = 100
+μ_true = 0.5 .* ones(2)  # <= different from original problem
+likelihood = MvNormal(μ_true, L * transpose(L))
+xs = rand(likelihood, n)
+#+end_src
 
 #+REVEAL: split
 
@@ -959,6 +991,7 @@ contour!(x_range, y_range, (x, y) -> pdf(posterior, [x, y]), label = "Posterior"
 #+HTML: </div>
 
 ** Optimal napkin selling
+#+ATTR_REVEAL: :frag (appear)
 - You own =k= ice-cream parlours on a beach
 - Business is going well → want to expand & diversify
 
@@ -975,7 +1008,7 @@ contour!(x_range, y_range, (x, y) -> pdf(posterior, [x, y]), label = "Posterior"
     \begin{equation*}
     \begin{split}
       \mathrm{loc}_i &\sim p(\text{location}) \\
-      \pi_i &:= f(\mathrm{loc}_i) \\
+      \pi_i &:= f(\mathrm{loc}_i) \in \mathbb{R}^{k} \\
       x_i &\sim \mathrm{Categorical}(\pi_i), \quad i = 1, \dots, n
     \end{split}
     \end{equation*}
@@ -1103,6 +1136,10 @@ plot(p1, p2, layout = (2, 1), size = (500, 1000))
 file:figures/ice-cream/posterior_10000_1000.svg
 
 #+HTML: </div>
+
+#+REVEAL: split
+
+file:figures/ice-cream/customer_10000_1000_1.svg
 
 * Thank you!
 #+HTML: <div><div><code>TuringLang</code> (website): <a href="https://turing.ml">https://turing.ml</a></div><div><code>TuringLang</code> (Github): <a href="https://github.com/TuringLang">https://github.com/TuringLang</a></div><div><code>Turing.jl</code> (Github): <a href="https://github.com/TuringLang/Turing.jl">https://github.com/TuringLang/Turing.jl</a></div><div><code>Bijectors.jl</code> (Github): <a href="https://github.com/TuringLang/Bijectors.jl">https://github.com/TuringLang/Bijectors.jl</a></div></div>
