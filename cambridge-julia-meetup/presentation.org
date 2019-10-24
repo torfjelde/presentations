@@ -1,5 +1,5 @@
 #+SETUPFILE: ~/org-blog/setup.org
-#+OPTIONS: tex:t
+#+OPTIONS: tex:t toc:nil
 
 
 #+REVEAL_ROOT: file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/reveal.js-3.8.0/
@@ -11,6 +11,7 @@
 #+TITLE: You have data and I have distributions: a talk on =Turing.jl= and =Bijectors.jl=
 
 * Overview
+#+ATTR_REVEAL: :frag (appear)
 1. Bayesian inference
    - Why you want to do Bayesian inference
    - What it means to do Bayesian inference
@@ -86,7 +87,7 @@ using Bijectors
 using Turing
 #+end_src
 
-_Disclaimer:_ All functionality in this talk is not yet available on the master branch of =Turing.jl= and =Bijectors.jl=, but should be soon™.
+_Disclaimer:_ All functionality in this talk is not yet available on the master branch of =Bijectors.jl=, but should be soon™.
 
 
 * =Turing.jl=
