@@ -2,7 +2,7 @@
 #+OPTIONS: tex:t
 
 #+REVEAL_ROOT: https://cdn.jsdelivr.net/npm/reveal.js
-#+REVEAL_TITLE_SLIDE: <div><h1>You have data and I have distributions</h1><h3>A talk on <code>Turing.jl</code> and <code>Bijectors.jl</code></h3></div>
+#+REVEAL_TITLE_SLIDE: <div><h1>You have data and I have distributions</h1><h3>A talk on <code>Turing.jl</code> and <code>Bijectors.jl</code></h3><div style="margin: -200px auto; opacity: 0.2;"><p><object data="https://turing.ml/dev/assets/images/turing-logo-wide.svg"></object></p></div></div>
 #+REVEAL_EXTRA_CSS: custom.css
 #+REVEAL_THEME: moon
 
@@ -89,8 +89,13 @@ For the family of inference methods known as /Markov Chain Monte-Carlo (MCMC)/, 
 
 
 * Setup
-#+begin_src jupyter-julia :session jl :exports code :results silent
+#+begin_src jupyter-julia :session jl :exports code :results silent :async yes
 using Plots, StatsPlots
+#+end_src
+
+#+begin_src jupyter-julia :session jl :results silent :exports none :async yes
+using Pkg; Pkg.activate("/home/tor/.julia/dev/Bijectors")
+using Bijectors
 #+end_src
 
 #+begin_src jupyter-julia :session jl :exports code :results silent :async yes
@@ -169,11 +174,15 @@ samples_nuts = sample(m, NUTS(10_000, 200, 0.65));
 └ @ AdvancedHMC /home/tor/.julia/packages/AdvancedHMC/n85yG/src/sampler.jl:157
 #+END_EXAMPLE
 
+#+HTML: <div class="fragment (appear)">
+
 Aaaand we can plot the resulting (empirical) posterior
 
 #+begin_src jupyter-julia :session jl :exports code :file figures/gaussian-inversegamma-hmc.svg
 plot(samples_nuts[[:s, :m]])
 #+end_src
+
+#+HTML: </div>
 
 #+REVEAL: split
 
@@ -182,9 +191,11 @@ plot(samples_nuts[[:s, :m]])
 ** *Approximate* inference (Variational inference)
 Sometimes you might be happy with an /approximation/ to your posterior $p \big( \theta \mid \left\{ x_i \right\}_{i = 1}^n \big)$.
 
-#+HTML: <div class="fragment (highlight-red)">
+#+HTML: <div class="fragment (appear)">
 
 *Variational inference (VI)* is an approximate approach which formulates the problem as an /optimization/ problem:
+#+HTML: </div>
+#+HTML: <div class="fragment (appear)">
 \begin{equation*}
 \underset{q}{\text{argmax}}\ \mathrm{ELBO} \big( q(\theta) \big) \quad \text{or} \quad \underset{q}{\text{argmin}}\ \mathrm{D_{KL}} \big( q(\theta) \mid p(\theta \mid \left\{ x_i \right\}_{i = 1}^n ) \big)
 \end{equation*}
@@ -207,12 +218,13 @@ advi = ADVI(10, 15_000)
 q = vi(m, advi)
 #+end_src
 
+#+HTML: <div class="fragment (appear)">
 To sample and compute probabilities
 #+begin_src jupyter-julia :session jl :exports code
 xs = rand(q, 10)
 logpdf(q, xs)
 #+end_src
-
+#+HTML: </div>
 
 #+REVEAL: split
 
@@ -239,10 +251,6 @@ For example $b(x) = \exp(x)$
 So $\exp$ (and $\log$) is a bijector!
 
 #+REVEAL: split
-
-#+begin_src jupyter-julia :session jl :results silent :exports none
-using Pkg; Pkg.activate("/home/tor/.julia/dev/Bijectors")
-#+end_src
 
 In =Bijectors.jl=
 
@@ -1247,3 +1255,5 @@ m = flow_based(data)
 samples = sample(m, HMC(1000, 0.1, 10); progress = true)
 #+end_src
 
+* Thank you!
+#+HTML: <div class="fragment (appear)"><div><code>TuringLang</code> (website): <a href="https://turing.ml">https://turing.ml</a></div><div><code>TuringLang</code> (Github): <a href="https://github.com/TuringLang">https://github.com/TuringLang</a></div><div><code>Turing.jl</code> (Github): <a href="https://github.com/TuringLang/Turing.jl">https://github.com/TuringLang/Turing.jl</a></div><div><code>Bijectors.jl</code> (Github): <a href="https://github.com/TuringLang/Bijectors.jl">https://github.com/TuringLang/Bijectors.jl</a></div></div>
