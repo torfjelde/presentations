@@ -1,7 +1,8 @@
 #+SETUPFILE: ~/org-blog/setup.org
 #+OPTIONS: tex:t
 
-#+REVEAL_ROOT: https://cdn.jsdelivr.net/npm/reveal.js
+
+#+REVEAL_ROOT: file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/reveal.js-3.8.0/
 #+REVEAL_TITLE_SLIDE: <div><h1>You have data and I have distributions</h1><h3>A talk on <code>Turing.jl</code> and <code>Bijectors.jl</code></h3><div style="margin: -200px auto; opacity: 0.2;"><p><object data="https://turing.ml/dev/assets/images/turing-logo-wide.svg"></object></p></div></div>
 #+REVEAL_EXTRA_CSS: custom.css
 #+REVEAL_THEME: moon
@@ -10,19 +11,17 @@
 #+TITLE: You have data and I have distributions: a talk on =Turing.jl= and =Bijectors.jl=
 
 * Overview
-1. Bayesian inference and a bit of density estimation
+1. Bayesian inference
    - Why you want to do Bayesian inference
    - What it means to do Bayesian inference
-   - Brief mention of what "density estimation" is
 2. =Turing.jl= on a simple example
    - Bayesian inference
    - /Approximate/ Bayesian inference (variational inference)
 3. =Bijectors.jl=:
    - What it's about
    - Why it's neat
-   - Normalizing flow
-4. Normalizing flow ADVI
-5. Combining /everything/
+   - Normalising flow
+4. Combining /everything/
 
 * Bayesian inference and such
 #+ATTR_REVEAL: :frag (appear)
@@ -59,7 +58,10 @@ p\big(\theta \mid \left\{ x_i \right\}_{i = 1}^n\big) = \frac{p\big(\left\{ x_i 
 #+HTML: <div class="fragment (appear)">
 or, since the denominator is constant,
 \begin{equation*}
-p\big(\theta \mid \left\{ x_i \right\}_{i = 1}^n \big) \propto p \big( \left\{ x_i \right\}_{i = 1}^n \mid \theta \big) p(\theta)
+\begin{split}
+  p\big(\theta \mid \left\{ x_i \right\}_{i = 1}^n \big) &\propto p \big( \left\{ x_i \right\}_{i = 1}^n \mid \theta \big) p(\theta) \\
+  &= p \big( \theta, \left\{ x_i \right\}_{i = 1}^n \big)
+\end{split}
 \end{equation*}
 #+HTML: </div>
 
@@ -382,7 +384,7 @@ using Bijectors: Shift, Scale
 
 # Define the transform
 b = Shift(1.0) ∘ Scale(5.0) # => x ↦ 1.0 + 5.0x
-td = transformed(d2, b)     # => 𝒩(1.0, 5.0)
+td = transformed(Normal(0.0, 1.0), b)     # => 𝒩(1.0, 5.0)
 #+end_src
 
 #+HTML: </div>
@@ -419,7 +421,7 @@ logpdf(td, y) ≈ logpdf(d1, y)
 
 #+begin_src jupyter-julia :session jl :exports code :file figures/normal-transformed-pdfs.svg :results none
 x_range = -14.0:0.05:16.0
-plot(x_range, x -> pdf(d1, x), label = "d1", linewidth = 4, linestyle = :dash)
+plot(x_range, x -> pdf(Normal(1.0, 5.0), x), label = "d1", linewidth = 4, linestyle = :dash)
 plot!(x_range, x -> pdf(td, x), label = "td", linewidth = 4, alpha = 0.6)
 #+end_src
 
@@ -545,7 +547,7 @@ Yup; it's basically an invertible neural network! (assuming $\det W \ne 0$)
 layers = [LeakyReLU(α[i]) ∘ Affine(W[i], b[i]) for i = 1:num_layers]
 
 b = foldl(∘, layers)
-td = transformed(base_dist, b)  # <= "deep" normalizing flow!
+td = transformed(base_dist, b)  # <= "deep" normalising flow!
 #+end_src
 
 #+HTML: </div>
@@ -589,6 +591,43 @@ file:figures/nf-banana-density-estimation.gif
 | $\big(x \sim p, b(x), \log \lvert\det \mathcal{J}_b(x)\rvert, \log q(y) \big)$ | =forward(q)=            | $\checkmark$ |
 |--------------------------------------------------------------------+-------------------------+--------------|
 
+** Implementing a =Bijector=
+#+begin_src jupyter-julia :session jl :eval no :exports code
+using StatsFuns: logit, logistic
+
+struct Logit{T<:Real} <: Bijector{0}
+    a::T
+    b::T
+end
+
+(b::Logit)(x) = @. logit((x - b.a) / (b.b - b.a))
+# `orig` contains the `Bijector` which was inverted
+(ib::Inversed{<:Logit})(y) = @. (ib.orig.b - ib.orig.a) * logistic(y) + ib.orig.a
+
+logabsdetjac(b::Logit, x) = @. - log((x - b.a) * (b.b - x) / (b.b - b.a))
+#+end_src
+
+#+REVEAL: split
+
+#+begin_src jupyter-julia :session jl :eval no
+julia> b = Logit(0.0, 1.0)
+Logit{Float64}(0.0, 1.0)
+
+julia> y = b(0.6)
+0.4054651081081642
+
+julia> inv(b)(y)
+0.6
+
+julia> logabsdetjac(b, 0.6)
+1.4271163556401458
+
+julia> logabsdetjac(inv(b), y) # defaults to `- logabsdetjac(b, inv(b)(x))`
+-1.4271163556401458
+
+julia> forward(b, 0.6)         # defaults to `(rv=b(x), logabsdetjac=logabsdetjac(b, x))`
+(rv = 0.4054651081081642, logabsdetjac = 1.4271163556401458)
+#+end_src
 
 * NF-ADVI vs. MF-ADVI
 #+HTML: <div class="fragment (appear)">
@@ -659,324 +698,9 @@ file:figures/mvnormal-1-nfvi-elbo-affine.png
 
 #+HTML: </div>
 
-* Combine _EVERYTHING_
+* Combining _EVERYTHING_
 
-** Simple non-diagonal Gaussian (cont.)
-
-#+begin_src jupyter-julia :session jl-nf-advi :exports none :results none
-# SETUP
-using Flux
-using Flux: Optimise
-using LinearAlgebra, Random
-using StatsFuns: softplus
-
-using ProgressMeter
-
-using Plots, StatsPlots
-
-using ForwardDiff
-using Logging
-
-using Pkg; Pkg.activate("~/.julia/dev/Bijectors")
-
-using Bijectors
-using Bijectors: Shift, Scale, CouplingLayer, PartitionMask
-
-using Turing
-using Turing: Variational
-using Turing.Core: TuringDiagNormal
-
-rng = Random.seed!(1)
-
-# Variational inference stuff
-Affine(W, b; dim::Type{Val{N}} = Val{1}) where {N} = Shift(b; dim = Val{N}) ∘ Scale(W; dim = Val{N})
-g(θ) = Affine(exp(θ[1]) + 0.1, θ[2]; dim = Val{1})
-
-function build_bijector(θ)
-    σ = exp.(θ[1:2]) .+ 0.01
-    μ = θ[3:4]
-
-    W1 = reshape(θ[5:6], (2, 1))
-    b1 = θ[7:8]
-    W2 = reshape(θ[9:12], (2, 2))
-    b2 = θ[13:14]
-
-    nn1 = Chain(Dense(W1, b1, relu), Dense(W2, b2))
-
-    W1 = reshape(θ[15:16], (2, 1))
-    b1 = θ[17:18]
-    W2 = reshape(θ[19:22], (2, 2))
-    b2 = θ[23:24]
-
-    nn2 = Chain(Dense(W1, b1, relu), Dense(W2, b2))
-
-    mask1 = PartitionMask(2, [2], [1], nothing)
-    cl1 = CouplingLayer(g, mask1, nn1)
-    
-    mask2 = PartitionMask(2, [1], [2], nothing)
-    cl2 = CouplingLayer(g, mask2, nn2)
-
-    return cl2 ∘ cl1 ∘ Affine(σ, μ)
-end
-
-# Posterior
-L = [1. 0.; 1. 1.] .* 10
-prior = MvNormal(zeros(2), ones(2))
-likelihood = MvNormal(zeros(2), L * L')
-
-# Data
-n = 100
-xs = rand(likelihood, n)
-
-Σ = inv(inv(prior.Σ) + n * inv(likelihood.Σ))
-μ = vec(Σ * (inv(prior.Σ) * prior.μ + n * inv(likelihood.Σ) * mean(xs; dims = 2)))
-posterior = MvNormal(μ, Σ)
-
-samples_posterior = rand(posterior, 1000)
-
-# Turing model
-@model gaussian(xs) = begin
-    μ ~ prior
-
-    for i = 1:size(xs, 2)
-        xs[:, i] ~ MvNormal(μ, L * L')
-    end
-end
-
-m = gaussian(xs)
-
-# NF
-BATCH_SIZE = 50
-NUM_OPT_STEPS = 1_000
-
-var_info = Turing.VarInfo(m)
-function f(θ)
-    b = build_bijector(θ)
-    q = transformed(base, b)
-
-    z₀, zₖ, logjac, logq = forward(q, BATCH_SIZE)
-    lp = [Variational.logdensity(m, var_info, zₖ[:, i]) for i = 1:BATCH_SIZE]
-    return - mean(lp + logjac) #ELBO
-end
-
-# initialization
-base = Turing.Core.TuringDiagNormal(zeros(2), ones(2))
-
-num_params = 34
-θ = randn(num_params) ./ sqrt(num_params)
-
-# optimize
-opt = Variational.DecayedADAGrad(1e-3)
-
-steps_taken = 0
-prog = ProgressMeter.Progress(NUM_OPT_STEPS)
-
-# initial ELBO
-b = build_bijector(θ)
-q = transformed(base, b)
-
-z₀, zₖ, logjac, logq = forward(q, 100)
-prev_logq = mean(logq)
-prev_logjac = mean(logjac)
-
-logp = logpdf(posterior, zₖ)
-prev_logp = mean(logp)
-
-logjoint = [Variational.logdensity(m, var_info, zₖ[:, i]) for i = 1:size(zₖ, 2)]
-prev_logjoint = mean(logjoint)
-
-prev_kl = mean(logq - logjoint)
-prev_elbo = mean(logjoint + logjac) + entropy(q)
-
-
-for i = 1:NUM_OPT_STEPS
-    Δ = ForwardDiff.gradient(f, θ)
-
-    ∇_norm = norm(Δ)
-    Optimise.apply!(opt, θ, Δ)
-
-    θ = θ .- Δ
-
-    if i % 10 == 0
-        b = build_bijector(θ)
-        q = transformed(base, b)
-
-        z₀, zₖ, logjac, logq = forward(q, 100)
-        prev_logq = mean(logq)
-        prev_logjac = mean(logjac)
-        logp = logpdf(posterior, zₖ)
-        prev_logp = mean(logp)
-        
-        prev_kl = mean(logq - logp)
-
-        logjoint = [Variational.logdensity(m, var_info, zₖ[:, i]) for i = 1:100]
-        prev_logjoint = mean(logjoint)
-        prev_elbo = mean(logjoint + logjac) + entropy(q)
-
-    end
-
-    ProgressMeter.next!(
-        prog;
-        showvalues = [
-            (:kl, prev_kl),
-            (:elbo, prev_elbo),
-            (:∇_norm, ∇_norm),
-            (:prev_logjac, prev_logjac),
-            (:prev_logp, prev_logp),
-            (:prev_logjoint, prev_logjoint),
-            (:prev_logq, prev_logq)
-        ]
-    )
-end
-θ_elbo = copy(θ)
-b = build_bijector(θ_elbo)
-q_nf_elbo = transformed(base, b)
-samples_nf_elbo = rand(q_nf_elbo, 1000)
-
-# visaulize
-x_range = -2.0:0.1:1.5
-y_range = -2.5:0.1:2.0
-
-contour(x_range, y_range, (x, y) -> pdf(posterior, [x, y]), label = "Posterior")
-contour!(x_range, y_range, (x, y) -> pdf(q_nf_elbo, [x, y]), label = "NF-ADVI")
-
-# Okay, so now we use this as a prior
-flow = q_nf_elbo;
-#+end_src
-
-#+begin_src jupyter-julia :session jl-nf-advi :exports none
-flow # <= flow from earlier
-
-L = [
-    10. 0.;
-    10. 10.
-]
-#+end_src
-
-We change the true mean $\mu$ from =[0, 0]= to =[0.5, 0.5]=
-
-#+begin_src jupyter-julia jupyter-julia :session jl-nf-advi :exports code
-# Data generation
-n = 100
-μ_true = 0.5 .* ones(2)  # <= different from original problem
-likelihood = MvNormal(μ_true, L * transpose(L))
-xs = rand(likelihood, n)
-#+end_src
-
-#+RESULTS:
-: 2×100 Array{Float64,2}:
-:  -15.3813  3.52882  -5.81578  -19.7243  …  -1.26671    8.8258   -5.49379
-:  -12.4074  2.51113   0.42283  -26.9775     -0.724036  19.7033  -17.2421 
-
-#+HTML: <div class="fragment (appear)">
-
-And add the normalizing flow variational posterior from before as a /prior/
-
-#+begin_src jupyter-julia jupyter-julia :session jl-nf-advi :exports code
-@model flow_demo(x) = begin
-    μ ~ flow # <= NF-ADVI applied to `MvNormal` from before
-
-    for i = 1:size(x, 2)
-        x[:, i] ~ MvNormal(μ, L * transpose(L))
-    end
-end
-#+end_src 
-
-#+HTML: </div>
-
-#+begin_src jupyter-julia jupyter-julia :session jl-nf-advi :exports none
-prior = posterior # <= because we use previous posterior
-
-Σ = inv(inv(prior.Σ) + n * inv(likelihood.Σ))
-μ = vec(Σ * (inv(prior.Σ) * prior.μ + n * inv(likelihood.Σ) * mean(xs; dims = 2)))
-posterior = MvNormal(μ, Σ)
-
-samples_posterior = rand(posterior, 10_000)
-#+end_src
-
-#+RESULTS:
-: 2×10000 Array{Float64,2}:
-:  -0.15542  -0.174742   0.211021  …   0.550523  -0.623962   0.2692  
-:  -1.64341  -0.205921  -0.686019     -1.4739    -1.64327   -0.174998
-
-#+REVEAL: split
-
-Then we perform exact inference using MCMC
-
-#+begin_src jupyter-julia jupyter-julia :session jl-nf-advi :exports code
-# Sample
-m = flow_demo(xs)
-samples = sample(m, NUTS(20_000, 1000, 0.65))
-#+end_src
-
-#+RESULTS:
-:RESULTS:
-#+BEGIN_EXAMPLE
-┌ Info: Found initial step size
-│   init_ϵ = 0.8
-└ @ Turing.Inference /home/tor/.julia/dev/Turing/src/inference/hmc.jl:365
-┌ Info: Finished 1000 adapation steps
-│   adaptor = StanHMCAdaptor(n_adapts=1000, pc=DiagPreconditioner, ssa=NesterovDualAveraging(γ=0.05, t_0=10.0, κ=0.75, δ=0.65, state.ϵ=0.9161520150457593), init_buffer=75, term_buffer=50)
-│   τ.integrator = Leapfrog(ϵ=0.916)
-│   h.metric = DiagEuclideanMetric([0.256373, 0.441133])
-└ @ AdvancedHMC /home/tor/.julia/packages/AdvancedHMC/n85yG/src/sampler.jl:145
-┌ Info: Finished 20000 sampling steps in 115.067615846 (s)
-│   h = Hamiltonian(metric=DiagEuclideanMetric([0.256373, 0.441133]))
-│   τ = NUTS{Multinomial,Generalised}(integrator=Leapfrog(ϵ=0.916), max_depth=10), Δ_max=1000.0)
-│   EBFMI_est = 23143.857593560853
-│   average_acceptance_rate = 0.8397687531321688
-└ @ AdvancedHMC /home/tor/.julia/packages/AdvancedHMC/n85yG/src/sampler.jl:157
-#+END_EXAMPLE
-#+BEGIN_EXAMPLE
-Object of type Chains, with data of type 19000×12×1 Array{Union{Missing, Float64},3}
-
-Log evidence      = 0.0
-Iterations        = 1:19000
-Thinning interval = 1
-Chains            = 1
-Samples per chain = 19000
-internals         = acceptance_rate, eval_num, hamiltonian_energy, is_accept, log_density, lp, n_steps, numerical_error, step_size, tree_depth
-parameters        = μ[1], μ[2]
-
-2-element Array{ChainDataFrame,1}
-
-Summary Statistics
-. Omitted printing of 1 columns
-│ Row │ parameters │ mean      │ std      │ naive_se   │ mcse       │ ess     │
-│     │ [90mSymbol[39m     │ [90mFloat64[39m   │ [90mFloat64[39m  │ [90mFloat64[39m    │ [90mFloat64[39m    │ [90mAny[39m     │
-├─────┼────────────┼───────────┼──────────┼────────────┼────────────┼─────────┤
-│ 1   │ μ[1]       │ -0.240894 │ 0.526839 │ 0.00382209 │ 0.00519204 │ 11004.0 │
-│ 2   │ μ[2]       │ -0.565251 │ 0.676478 │ 0.00490768 │ 0.00689196 │ 10801.6 │
-
-Quantiles
-
-│ Row │ parameters │ 2.5%     │ 25.0%     │ 50.0%     │ 75.0%     │ 97.5%    │
-│     │ [90mSymbol[39m     │ [90mFloat64[39m  │ [90mFloat64[39m   │ [90mFloat64[39m   │ [90mFloat64[39m   │ [90mFloat64[39m  │
-├─────┼────────────┼──────────┼───────────┼───────────┼───────────┼──────────┤
-│ 1   │ μ[1]       │ -1.27603 │ -0.596539 │ -0.238923 │ 0.123116  │ 0.7855   │
-│ 2   │ μ[2]       │ -1.91775 │ -1.0214   │ -0.558174 │ -0.107487 │ 0.743114 │
-#+END_EXAMPLE
-:END:
-
-#+HTML: <div class="fragment (appear)">
-
-#+begin_src jupyter-julia jupyter-julia :session jl-nf-advi :exports results :file figures/flow-in-generative-model.svg
-samples_vals = samples[:μ].value
-
-x_range = -2.0:0.1:2.0
-y_range = -2.5:0.1:2.0
-
-histogram2d(samples_vals[:, 1], samples_vals[:, 2], bins = 25, normed = true, fill = cgrad(:viridis))
-contour!(x_range, y_range, (x, y) -> pdf(posterior, [x, y]), label = "Posterior", linecolor = cgrad(:deep), linewidth = 3)
-#+end_src
-
-#+CAPTION: Results of using =NUTS= to sample from generative model with NF prior. Contour plot is of /true/ posterior, while histogram is of the =NUTS= samples.
-#+RESULTS:
-[[file:figures/flow-in-generative-model.svg]]
-
-#+HTML: </div>
-
-** Example: selling napkins like a professional
+** Real-world example: selling napkins like a professional
 #+ATTR_REVEAL: :frag (appear)
 - You own =k= ice-cream parlours on a beach
 - Business is going well → want to expand & diversify
@@ -1005,7 +729,7 @@ contour!(x_range, y_range, (x, y) -> pdf(posterior, [x, y]), label = "Posterior"
 
 #+REVEAL: split
 
-#+CAPTION: Beach plot. =locations= (yellow) refer to samples from the location prior (density estimated using normalizing flow). The blue part represents the sea, and the black part represents land which is /not/ part of the beach so we don't care about it.
+#+CAPTION: Beach plot. =locations= (yellow) refer to samples from the location prior (density estimated using normalising flow). The blue part represents the sea, and the black part represents land which is /not/ part of the beach so we don't care about it.
 file:figures/ice-cream/beach_annotated.svg
 
 #+REVEAL: split
@@ -1125,7 +849,9 @@ file:figures/ice-cream/posterior_10000_1000.svg
 
 #+REVEAL: split
 
-file:figures/ice-cream/customer_10000_1000_1.svg
+Guaranteed great success. 
 
-* Thank you!
+A couple of years later you're probably already in the business of bribing politicians to reduce worker-benefits for napkin-salesmen.
+
+* Thank you
 #+HTML: <div><div><code>TuringLang</code> (website): <a href="https://turing.ml">https://turing.ml</a></div><div><code>TuringLang</code> (Github): <a href="https://github.com/TuringLang">https://github.com/TuringLang</a></div><div><code>Turing.jl</code> (Github): <a href="https://github.com/TuringLang/Turing.jl">https://github.com/TuringLang/Turing.jl</a></div><div><code>Bijectors.jl</code> (Github): <a href="https://github.com/TuringLang/Bijectors.jl">https://github.com/TuringLang/Bijectors.jl</a></div></div>
