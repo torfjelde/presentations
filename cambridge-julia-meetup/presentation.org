@@ -2,7 +2,8 @@
 #+OPTIONS: tex:t toc:nil
 
 
-#+REVEAL_ROOT: file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/reveal.js-3.8.0/
+#+REVEAL_ROOT: file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/assets/reveal.js-3.8.0/
+#+REVEAL_MATHJAX_URL: file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/assets/MathJax-2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML
 #+REVEAL_TITLE_SLIDE: <div><h1>You have data and I have distributions</h1><h3>A talk on <code>Turing.jl</code> and <code>Bijectors.jl</code></h3><div style="margin: -200px auto; opacity: 0.2;"><p><object data="https://turing.ml/dev/assets/images/turing-logo-wide.svg"></object></p></div></div>
 #+REVEAL_EXTRA_CSS: custom.css
 #+REVEAL_THEME: moon
@@ -71,12 +72,12 @@ For the family of inference methods known as /Markov Chain Monte-Carlo (MCMC)/, 
 #+HTML: </div>
 
 * Setup
-#+begin_src jupyter-julia :session jl :exports code :results silent :async yes
-using Plots, StatsPlots
+#+begin_src jupyter-julia :session jl :results silent :exports none :async yes
+using Pkg; Pkg.activate(".")
 #+end_src
 
-#+begin_src jupyter-julia :session jl :results silent :exports none :async yes
-using Pkg; Pkg.activate("/home/tor/.julia/dev/Bijectors")
+#+begin_src jupyter-julia :session jl :exports code :results silent :async yes
+using Plots, StatsPlots
 #+end_src
 
 #+begin_src jupyter-julia :session jl :exports code :async yes :results silent
@@ -94,6 +95,16 @@ _Disclaimer:_ All functionality in this talk is not yet available on the master 
 #+begin_src jupyter-julia :session jl :exports both
 versioninfo()
 #+end_src
+
+#+RESULTS:
+: Julia Version 1.1.1
+: Commit 55e36cc308 (2019-05-16 04:10 UTC)
+: Platform Info:
+:   OS: Linux (x86_64-pc-linux-gnu)
+:   CPU: Intel(R) Core(TM) i5-7200U CPU @ 2.50GHz
+:   WORD_SIZE: 64
+:   LIBM: libopenlibm
+:   LLVM: libLLVM-6.0.1 (ORCJIT, skylake)
 
 * =Turing.jl=
 #+ATTR_REVEAL: :frag (appear)

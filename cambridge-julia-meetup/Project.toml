@@ -1,5 +1,6 @@
 [deps]
 Bijectors = "76274a88-744f-5084-9051-94815aaf08c4"
+DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 Hyperopt = "93e5fe13-2215-51db-baaf-2e9a34fb2712"

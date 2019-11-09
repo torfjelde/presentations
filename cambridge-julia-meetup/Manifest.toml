@@ -20,9 +20,9 @@ version = "1.0.0"
 
 [[AdvancedHMC]]
 deps = ["ArgCheck", "InplaceOps", "LazyArrays", "LinearAlgebra", "Parameters", "ProgressMeter", "Random", "Statistics", "StatsBase", "StatsFuns"]
-git-tree-sha1 = "c11e25e232f5d56f1dc154e6aaed428d0397b5bc"
+git-tree-sha1 = "08ea24e7afec81d8e3fd00315be0e00701199282"
 uuid = "0bf59076-c3b1-5ca4-86bd-e02cd72cde3d"
-version = "0.2.7"
+version = "0.2.13"
 
 [[ArgCheck]]
 deps = ["Random"]
@@ -272,6 +272,12 @@ git-tree-sha1 = "3dd6ce2ad107e7362e08a6834d3bbdd3e4f07b7b"
 uuid = "ced4e74d-a319-5a8a-b0ac-84af2272839c"
 version = "0.1.1"
 
+[[DrWatson]]
+deps = ["FileIO", "LibGit2", "Pkg", "Random", "Requires"]
+git-tree-sha1 = "4fc0236b26d1851bbba5ed2081fdbf7b6e995484"
+uuid = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
+version = "1.5.0"
+
 [[ElasticArrays]]
 git-tree-sha1 = "d9c079b747b9e9985d83e806bb77e41d149c959a"
 uuid = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"
@@ -300,6 +306,12 @@ deps = ["LinearAlgebra", "SpecialFunctions"]
 git-tree-sha1 = "af35c193d743c674a25c384a9b673299a179cc2b"
 uuid = "442a2c76-b920-505d-bb47-c5924d526838"
 version = "0.4.0"
+
+[[FileIO]]
+deps = ["Pkg"]
+git-tree-sha1 = "351f001a78aa1b7ad2696e386e110b5abd071c71"
+uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
+version = "1.0.7"
 
 [[FillArrays]]
 deps = ["LinearAlgebra", "Random", "SparseArrays"]
