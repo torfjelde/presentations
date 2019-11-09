@@ -79,7 +79,7 @@ using Plots, StatsPlots
 using Pkg; Pkg.activate("/home/tor/.julia/dev/Bijectors")
 #+end_src
 
-#+begin_src jupyter-julia :session jl :exports code :async yes
+#+begin_src jupyter-julia :session jl :exports code :async yes :results silent
 using Bijectors
 #+end_src
 
@@ -89,6 +89,11 @@ using Turing
 
 _Disclaimer:_ All functionality in this talk is not yet available on the master branch of =Bijectors.jl=, but should be soon™.
 
+#+REVEAL: split
+
+#+begin_src jupyter-julia :session jl :exports both
+versioninfo()
+#+end_src
 
 * =Turing.jl=
 #+ATTR_REVEAL: :frag (appear)
@@ -554,6 +559,10 @@ td = transformed(base_dist, b)  # <= "deep" normalising flow!
 #+HTML: </div>
 
 #+REVEAL: split
+
+#+begin_src jupyter-julia :session jl :results none
+include("src/nf_banana.jl")
+#+end_src
 
 #+ATTR_HTML: :width 35%
 #+CAPTION: Empirical density estimate (blue) compared with single batch of samples (red).
