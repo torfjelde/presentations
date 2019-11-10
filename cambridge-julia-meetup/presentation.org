@@ -72,7 +72,7 @@ For the family of inference methods known as /Markov Chain Monte-Carlo (MCMC)/, 
 #+HTML: </div>
 
 * Setup
-#+begin_src jupyter-julia :session jl :results silent :exports none :async yes
+#+begin_src jupyter-julia :session jl :results silent :exports code :async yes
 using Pkg; Pkg.activate(".")
 #+end_src
 
@@ -454,14 +454,9 @@ Great; just another way to draw samples from a normal distribution...
 #+ATTR_REVEAL: :frag (appear)
 Or /is it/?
 
-#+HTML: <div class="fragment (appear)">
-#+begin_src jupyter-julia :session jl :exports none
-using Random; Random.seed!(10);
-#+end_src
-
-#+RESULTS:
-
+#+ATTR_REVEAL: :frag (appear)
 #+begin_src jupyter-julia :session jl :exports code :file figures/simple-nf-pdf.svg :results none
+using Random; Random.seed!(10); # <= chosen because of nice visualization
 d = MvNormal(zeros(1), ones(1))
 
 # "Deep" transformation
@@ -481,8 +476,6 @@ histogram(vec(xs), bins = 100; normed = true, label = "", alpha = 0.7)
 xlabel!("y")
 plot!(x_range, lps, linewidth = 3, label = "p(y)")
 #+end_src
-
-#+HTML: </div>
 
 #+REVEAL: split
 #+LaTeX: \clearpage
@@ -543,7 +536,7 @@ Consider an =Affine= transformation, i.e.
 \end{equation*}
 for matrix $W$ and vector $b$,
 #+HTML: <div class="fragment (appear)">
-and a non-linear activation function, e.g. =LeakyReLU=
+and a non-linear (but /invertible/) activation function, e.g. =LeakyReLU=
 \begin{equation*}
 a(x) = 
 \begin{cases}
@@ -571,12 +564,8 @@ td = transformed(base_dist, b)  # <= "deep" normalising flow!
 
 #+REVEAL: split
 
-#+begin_src jupyter-julia :session jl :results none
-include("src/nf_banana.jl")
-#+end_src
-
 #+ATTR_HTML: :width 35%
-#+CAPTION: Empirical density estimate (blue) compared with single batch of samples (red).
+#+CAPTION: Empirical density estimate (blue) compared with single batch of samples (red). 
 file:figures/nf-banana-density-estimation.gif
 
 ** Methods
@@ -755,8 +744,13 @@ file:figures/ice-cream/beach_annotated.svg
 
 #+REVEAL: split
 
-#+CAPTION: Beach prior.
-file:figures/ice-cream/prior_10000_1000.svg
+#+begin_src jupyter-julia :session jl :results none :exports none
+include("scripts/nf_banana_improved.jl")
+#+end_src
+
+#+CAPTION: Beach prior. 6-layer NF with =Affine= and =LeakyReLU= as seen in animation from before.
+file:figures/nf_banana_figures/prior_10000_1000.svg
+
 
 *** Observations & model
 
@@ -815,7 +809,7 @@ m = napkin_model(fake_samples)
 # Sample using NUTS
 num_mcmc_samples = 10_000
 mcmc_warmup = 1_000
-samples = sample(m, NUTS(num_mcmc_samples + mcmc_warmup, mcmc_warmup, 0.65));
+samples = sample(m, NUTS(mcmc_warmup, 0.65), num_mcmc_samples);
 #+end_src
 
 #+begin_src jupyter-julia :session jl :exports none :results none
