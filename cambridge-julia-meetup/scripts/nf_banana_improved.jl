@@ -7,6 +7,8 @@ using Plots, StatsPlots
 using ForwardDiff
 pyplot()
 
+include(srcdir("leaky_relu.jl"))
+
 DTYPE = Float32
 
 # Create data
@@ -25,53 +27,6 @@ x_samples = generate_samples(BATCH_SIZE)
 
 # Construct base distribution
 base = MvNormal(DTYPE.(zeros(2)), DTYPE.(ones(2)))
-
-#############
-# LeakyReLU #
-#############
-import Bijectors: logabsdetjac, forward
-
-struct LeakyReLU{T} <: Bijector{1} # <= expects 1-dim input i.e. vector-input
-    α::T
-end
-
-function (b::LeakyReLU{T1})(x::AbstractVecOrMat{T2}) where {T1, T2}
-    return @. ifelse(x < 0.0, b.α * x, x)
-end
-function (ib::Inversed{<:LeakyReLU{T1}})(y::AbstractVecOrMat{T2}) where {T1, T2}
-    return @. ifelse(y < 0.0, inv(ib.orig.α) * y, y)
-end
-
-
-logabsdetjac(b::LeakyReLU, x::AbstractVecOrMat) = - logabsdetjac(inv(b), b(x))
-function logabsdetjac(ib::Inversed{<:LeakyReLU{T1}}, y::AbstractVecOrMat{T2}) where {T1, T2}
-    T = T2
-    J⁻¹ = @. ifelse(y < 0, inv(ib.orig.α), one(T)) # <= is really diagonal of jacobian
-
-    # this is optimized away
-    if y isa AbstractVector
-        return sum(log.(abs.(J⁻¹)))
-    elseif y isa AbstractMatrix
-        return vec(sum(log.(abs.(J⁻¹)); dims = 1))  # sum along column
-    end
-end
-
-# We implement `forward` by hand since we can re-use the computation of
-# the Jacobian of the transformation. This will lead to faster sampling
-# when using `rand` on a `TransformedDistribution` making use of `LeakyReLU`.
-function forward(b::LeakyReLU{T1}, x::AbstractVecOrMat{T2}) where {T1, T2}
-    T = T2
-    J = @. ifelse(x < 0, b.α, one(T)) # <= is really diagonal of jacobian
-    
-    if x isa AbstractVector
-        logjac = sum(log.(abs.(J)))
-    elseif x isa AbstractMatrix
-        logjac = vec(sum(log.(abs.(J)); dims = 1))  # sum along column
-    end
-    
-    y = J .* x
-    return (rv=y, logabsdetjac=logjac)
-end
 
 b = LeakyReLU(DTYPE.(2))
 z = ones(DTYPE, 2) - DTYPE.([0.0, 2.0])
@@ -137,10 +92,6 @@ function construct_flow(θ)
     layers = []
     for i = 1:num_layers
         start = (i - 1) * num_params_per_layer + 1
-        # @info start
-        # @info start:start + d - 1
-        # @info start + d: start + 2d - 1
-        # @info start + 2d
         shift_params = θ[start .+ shift_param_range]
 
         # Constructing a Cholesky with positive diagonals
@@ -219,120 +170,16 @@ ForwardDiff.gradient(f, θ)
 ############
 # Training #
 ############
-# Some functions for visualization purposes
-function quadrant_masks(x)
-    ll_mask = [(x[1, i] < 0) & (x[2, i] < 0) for i = 1:size(x, 2)]
-    lr_mask = [(x[1, i] ≥ 0) & (x[2, i] < 0) for i = 1:size(x, 2)]
-
-    ul_mask = [(x[1, i] < 0) & (x[2, i] ≥ 0) for i = 1:size(x, 2)]
-    ur_mask = [(x[1, i] ≥ 0) & (x[2, i] ≥ 0) for i = 1:size(x, 2)]
-
-    return ll_mask, ul_mask, ur_mask, lr_mask
-end
-
-function plot_samples(x; masks = nothing, colors = [:red, :blue, :black, :green])
-    ll_mask, ul_mask, ur_mask, lr_mask = (masks === nothing) ? quadrant_masks(x) : masks
-    
-    p = scatter(x[1, ll_mask], x[2, ll_mask], markercolor = colors[1], label = "", markersize = 2, markerstrokewidth = 0)
-    scatter!(x[1, ul_mask], x[2, ul_mask], markercolor = colors[2], label = "", markersize = 2, markerstrokewidth = 0)
-    scatter!(x[1, ur_mask], x[2, ur_mask], markercolor = colors[3], label = "", markersize = 2, markerstrokewidth = 0)
-    scatter!(x[1, lr_mask], x[2, lr_mask], markercolor = colors[4], label = "", markersize = 2, markerstrokewidth = 0)
-
-    return p
-end
-
-
-function layerbylayer_plot(td::TransformedDistribution, x)
-    y = x
-    
-    masks = quadrant_masks(y)
-    transform_plots = [plot_samples(y; masks = masks)]
-
-    b = td.transform
-
-    for i = 1:length(b.ts)
-        y = b.ts[i](y)
-        # p = scatter(y[1, :], y[2, :], label = "y_$i")
-        p = plot_samples(y)
-        xlims!(-10.0, 30.0)
-        ylims!(-10.0, 15.0)
-        push!(transform_plots, p)
-    end
-
-    return plot(transform_plots..., layout = (1, 1 + length(b.ts)))
-end
-
+### Optimization
 # We want to use ADAM for optimization so we need Flux.Optimise
 using Flux.Optimise, ProgressMeter, Random
-
-# Initializing using the same parameters as Tensorflow uses
-V0 = [[-0.69470036  1.0377892 ]
- [-1.1973481  -0.45261383]]
-shift0 = [-0.8440926,  0.4192394]
-L0 = [[-0.3992703   0.        ]
- [ 0.7473383   0.39921927]]
-alpha0 = -1.0906933546066284
-V1 = [[ 0.4329685  -0.48924023]
- [-0.1613357   1.1891216 ]]
-shift1 = [-0.53116786,  0.7054597 ]
-L1 = [[0.22240257 0.        ]
- [0.33831072 0.35498   ]]
-alpha1 = -1.6679620742797852
-V2 = [[-0.8232367  -0.6679769 ]
- [ 0.4709369  -0.38397086]]
-shift2 = [-0.32219,    -0.74817294]
-L2 = [[0.71648455 0.        ]
- [0.28550506 0.11648226]]
-alpha2 = -1.3658761978149414
-V3 = [[ 0.44979656  0.5101937 ]
- [-0.4264843   0.97859585]]
-shift3 = [-0.589462,    0.55738735]
-L3 = [[0.05405951 0.        ]
- [0.4904921  0.37576723]]
-alpha3 = 0.44315946102142334
-V4 = [[ 1.0989882  -0.02543747]
- [ 0.9325644  -0.21350157]]
-shift4 = [0.3811028,  0.11544478]
-L4 = [[-0.6974654   0.        ]
- [-0.87845683 -0.3911724 ]]
-alpha4 = 1.014729380607605
-V5 = [[ 0.82150924 -1.1683286 ]
- [ 0.4476515  -0.4257114 ]]
-shift5 = [1.2163152, 1.1666728]
-L5 = [[ 0.49313235  0.        ]
- [-0.6587894  -0.47925997]]
-alpha5 = -0.5069767236709595
-
-@assert reshape(vec(L0), (d, d)) == L0
-
-θ₀ = vcat(
-    vcat(shift0, vec(L0), vec(V0), alpha0),
-    vcat(shift1, vec(L1), vec(V1), alpha1),
-    vcat(shift2, vec(L2), vec(V2), alpha2),
-    vcat(shift3, vec(L3), vec(V3), alpha3),
-    vcat(shift4, vec(L4), vec(V4), alpha4),
-    vcat(shift5, vec(L5), vec(V5), alpha5)
-)
-θ = θ₀
-@assert length(θ) == num_params_per_layer * num_layers
-
-# Optimization
-
-std(θ₀)
-mean(θ₀)
-inv(sqrt(length(θ₀)))
-
-
-nlls = []
-
 using Hyperopt
 
 # learning_rate = 1e-3
 ho = @hyperopt for  opt_idx = 10, learning_rate = LinRange(1e-6, 1e-1, 100), seed = [1, 2, 3, 4, 5]
     println(opt_idx, "\t", learning_rate, "\t", seed)
 
-    # global θ₀
-    # θ = copy(θ₀)
+    # initialization
     rng = Random.MersenneTwister(seed)
     θ = randn(rng, num_params_per_layer * num_layers)
     
@@ -340,8 +187,6 @@ ho = @hyperopt for  opt_idx = 10, learning_rate = LinRange(1e-6, 1e-1, 100), see
     nlls = []
     
     opt = Optimise.ADAM(learning_rate)
-    # opt.eta = 0.001
-    # θ .+= randn(length(θ)) * 0.1
 
     ps = []
 
@@ -364,25 +209,6 @@ ho = @hyperopt for  opt_idx = 10, learning_rate = LinRange(1e-6, 1e-1, 100), see
         push!(nlls, nll)
 
         ProgressMeter.next!(prog; showvalues = [(:nll, nll), ])
-
-        # if mod(i, 500) == 0
-        #     flow = construct_flow(θ)
-        #     td = transformed(base, flow)
-
-        #     # base_samples = rand(td.dist, BATCH_SIZE)
-        #     # nf_samples = hcat([td.transform(base_samples[:, i]) for i = 1:size(base_samples, 2)]...)
-        #     nf_samples = rand(td, 4000)
-
-        #     x_samples = generate_samples(BATCH_SIZE)
-
-        #     p2 = scatter(nf_samples[1, :], nf_samples[2, :], label = "transformed")
-        #     scatter!(x_samples[1, :], x_samples[2, :], label = "x")
-
-        #     xlims!(-10.0, 30.0)
-        #     ylims!(-10.0, 15.0)
-
-        #     push!(ps, p2)
-        # end
     end
 
     # Estimate likelihood
@@ -392,8 +218,6 @@ ho = @hyperopt for  opt_idx = 10, learning_rate = LinRange(1e-6, 1e-1, 100), see
     @show - mean(logpdf(td, x_samples))
 end
 
-# good seeds: [4, ]
-
 plot(ho)
 learning_rate, seed = first(minimum(ho))
 
@@ -402,6 +226,7 @@ learning_rate, seed = first(minimum(ho))
 ho = @hyperopt for  opt_idx = 10, sampler = GPSampler(Min), learning_rate = LinRange(1e-6, 1e-2, 100)
     println(opt_idx, "\t", learning_rate, "\t", seed)
 
+    # initialization
     global seed
     rng = Random.MersenneTwister(seed)
     θ = randn(rng, num_params_per_layer * num_layers)
@@ -410,8 +235,6 @@ ho = @hyperopt for  opt_idx = 10, sampler = GPSampler(Min), learning_rate = LinR
     nlls = []
     
     opt = Optimise.ADAM(learning_rate)
-    # opt.eta = 0.001
-    # θ .+= randn(length(θ)) * 0.1
 
     ps = []
 
@@ -453,8 +276,6 @@ diff_result = DiffResults.GradientResult(θ)
 nlls = []
 
 opt = Optimise.ADAM(learning_rate)
-# opt.eta = 0.001
-# θ .+= randn(length(θ)) * 0.1
 
 ps = []
 
@@ -482,10 +303,7 @@ for i = 1:num_steps
         flow = construct_flow(θ)
         td = transformed(base, flow)
 
-        # base_samples = rand(td.dist, BATCH_SIZE)
-        # nf_samples = hcat([td.transform(base_samples[:, i]) for i = 1:size(base_samples, 2)]...)
         nf_samples = rand(td, 4000)
-
         x_samples = generate_samples(BATCH_SIZE)
 
         p2 = scatter(nf_samples[1, :], nf_samples[2, :], label = "transformed")
@@ -512,13 +330,12 @@ anim = @animate for i = 1:length(ps)
     plot(p1, p2, layout = grid(2, 1, hieghts = [2 * 750 / 3, 750 / 3]), size = (500, 750))
 end
 
-gif(anim, "../figures/nf_banana_figures/nf_banana_training.gif", fps=10)
+gif(anim, "../figures/ice-cream/nf_prior_training.gif", fps=10)
 
 # Ice-cream posterior
 parlour1 = [5.0, -5.0]
 parlour2 = [2.5, 2.5]
 
-# x_samples = generate_samples(BATCH_SIZE)
 x_samples = rand(td, 5000)
 scatter(x_samples[1, :], x_samples[2, :], label = "x", markerstrokewidth = 0, color = :orange, alpha = 0.4)
 
@@ -580,15 +397,10 @@ posterior_locs_idx = td.transform(posterior_locs_samples[:, customer_idx, :]')
 
 posterior_locs_idx = td.transform(reshape(posterior_locs_samples, (:, 2))')
 
-mean_locs = mean(posterior_locs_idx; dims = 2)
-std_locs = std(posterior_locs_idx; dims = 2)
-
 p1 = scatter(x_samples[1, :], x_samples[2, :], label = "locations", markerstrokewidth = 0, color = :orange, alpha = 0.3)
 
 xlims!(-10.0, 30.0)
 ylims!(-15.0, 15.0)
-
-# scatter!(mean_locs[1:1], mean_locs[2:2], xerr = std_locs[1:1], yerr = std_locs[2:2], label = "")
 
 histogram2d!(posterior_locs_idx[1, :], posterior_locs_idx[2, :], bins = 100, normed = true, alpha = 0.8, color = cgrad(:viridis))
 title!("Posterior")
@@ -596,8 +408,8 @@ title!("Posterior")
 scatter!(parlour1[1:1], parlour1[2:2], label = "Parlour #1", color = :red, markersize = 5)
 scatter!(parlour2[1:1], parlour2[2:2], label = "Parlour #2", color = :blue, markersize = 5)
 
-savefig("../figures/nf_banana_figures/posterior_$(num_mcmc_samples)_$(mcmc_warmup).svg")
-savefig("../figures/nf_banana_figures/posterior_$(num_mcmc_samples)_$(mcmc_warmup).png")
+savefig("../figures/ice-cream/posterior_$(num_mcmc_samples)_$(mcmc_warmup).svg")
+savefig("../figures/ice-cream/posterior_$(num_mcmc_samples)_$(mcmc_warmup).png")
 
 p2 = scatter(x_samples[1, :], x_samples[2, :], label = "locations", markerstrokewidth = 0, color = :orange, alpha = 0.3)
 
@@ -610,12 +422,12 @@ title!("Prior")
 scatter!(parlour1[1:1], parlour1[2:2], label = "Parlour #1", color = :red, markersize = 5)
 scatter!(parlour2[1:1], parlour2[2:2], label = "Parlour #2", color = :blue, markersize = 5)
 
-savefig("../figures/nf_banana_figures/prior_$(num_mcmc_samples)_$(mcmc_warmup).svg")
-savefig("../figures/nf_banana_figures/prior_$(num_mcmc_samples)_$(mcmc_warmup).png")
+savefig("../figures/ice-cream/prior_$(num_mcmc_samples)_$(mcmc_warmup).svg")
+savefig("../figures/ice-cream/prior_$(num_mcmc_samples)_$(mcmc_warmup).png")
 
 plot(p1, p2, layout = (2, 1), size = (500, 1000))
-savefig("../figures/nf_banana_figures/combined_$(num_mcmc_samples)_$(mcmc_warmup).svg")
-savefig("../figures/nf_banana_figures/combined_$(num_mcmc_samples)_$(mcmc_warmup).png")
+savefig("../figures/ice-cream/combined_$(num_mcmc_samples)_$(mcmc_warmup).svg")
+savefig("../figures/ice-cream/combined_$(num_mcmc_samples)_$(mcmc_warmup).png")
 
 
 # SAVE THE STUFF
@@ -623,15 +435,10 @@ for customer_idx = 1:num_fake_samples
     # Transform because samples will be untransformed
     posterior_locs_idx = td.transform(posterior_locs_samples[:, customer_idx, :]')
 
-    mean_locs = mean(posterior_locs_idx; dims = 2)
-    std_locs = std(posterior_locs_idx; dims = 2)
-
     scatter(x_samples[1, :], x_samples[2, :], label = "x", markerstrokewidth = 0, color = :orange, alpha = 0.3)
 
     xlims!(-10.0, 30.0)
     ylims!(-15.0, 15.0)
-
-    # scatter!(mean_locs[1:1], mean_locs[2:2], xerr = std_locs[1:1], yerr = std_locs[2:2], label = "")
 
     histogram2d!(posterior_locs_idx[1, :], posterior_locs_idx[2, :], bins = 100, normed = true, alpha = 0.8, color = cgrad(:viridis))
 
@@ -640,6 +447,6 @@ for customer_idx = 1:num_fake_samples
 
     title!("Customer $customer_idx: Parlour #$(fake_samples[customer_idx])")
     
-    savefig("../figures/nf_banana_figures/customer_$(num_mcmc_samples)_$(mcmc_warmup)_$customer_idx.svg")
-    savefig("../figures/nf_banana_figures/customer_$(num_mcmc_samples)_$(mcmc_warmup)_$customer_idx.png")
+    savefig("../figures/ice-cream/customer_$(num_mcmc_samples)_$(mcmc_warmup)_$customer_idx.svg")
+    savefig("../figures/ice-cream/customer_$(num_mcmc_samples)_$(mcmc_warmup)_$customer_idx.png")
 end
