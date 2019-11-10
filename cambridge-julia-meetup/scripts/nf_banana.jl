@@ -9,7 +9,7 @@ pyplot()
 
 include(srcdir("leaky_relu.jl"))
 
-DTYPE = Float32
+const DTYPE = Float32
 
 # Create data
 function generate_samples(batch_size)
@@ -27,34 +27,6 @@ x_samples = generate_samples(BATCH_SIZE)
 
 # Construct base distribution
 base = MvNormal(DTYPE.(zeros(2)), DTYPE.(ones(2)))
-
-b = LeakyReLU(DTYPE.(2))
-z = ones(DTYPE, 2) - DTYPE.([0.0, 2.0])
-y = b(z)
-z_ = inv(b)(y)
-
-@assert z_ == z
-
-rv, logjac = forward(b, z)
-logjac_forward = logabsdetjac(b, z)
-logjac_inverse = logabsdetjacinv(b, y)
-
-@assert logjac ≈ logjac_forward ≈ - logjac_inverse
-
-b = LeakyReLU(DTYPE.(2))
-z = ones(DTYPE, (2, 3)) - DTYPE.(repeat([0.0, 2.0]', 3)')
-y = b(z)
-z_ = inv(b)(y)
-
-@assert z_ == z
-
-rv, logjac = forward(b, z)
-logjac_forward = logabsdetjac(b, z)
-logjac_inverse = logabsdetjacinv(b, y)
-
-@assert logjac ≈ logjac_forward ≈ - logjac_inverse
-@assert all([y[:, i] == b(z[:, i]) for i = 1:size(z, 2)])
-
 
 # Affine transformation is simply a `Scale` composed with `Shift`
 using Bijectors: Shift, Scale
@@ -327,126 +299,7 @@ x_samples = generate_samples(5_000)
 anim = @animate for i = 1:length(ps)
     p1 = plot(ps[i], size=(500, 500), legend = :topright)
     p2 = plot(Float64.(nlls[1:i]), label = "Average NLL")
-    plot(p1, p2, layout = grid(2, 1, hieghts = [2 * 750 / 3, 750 / 3]), size = (500, 750))
+    plot(p1, p2, layout = grid(2, 1, heights = [2 * 750 / 3, 750 / 3]), size = (500, 750))
 end
 
-gif(anim, "../figures/ice-cream/nf_prior_training.gif", fps=10)
-
-# Ice-cream posterior
-parlour1 = [5.0, -5.0]
-parlour2 = [2.5, 2.5]
-
-x_samples = rand(td, 5000)
-scatter(x_samples[1, :], x_samples[2, :], label = "x", markerstrokewidth = 0, color = :orange, alpha = 0.4)
-
-scatter!(parlour1[1:1], parlour1[2:2], label = "Parlour #1", color = :red, markersize = 5)
-scatter!(parlour2[1:1], parlour2[2:2], label = "Parlour #2", color = :blue, markersize = 5)
-
-xlims!(-10.0, 30.0)
-ylims!(-15.0, 15.0)
-
-
-x_range = -10:0.05:30
-y_range = -10:0.05:15
-contour(x_range, y_range, (x, y) -> pdf(td, [x, y]))
-
-# Using resulting flow, let's do some neat stuff
-using Turing
-@model napkin_model(x, ::Type{TV} = Vector{Float64}) where {TV} = begin
-    locs = Vector{TV}(undef, length(x))
-    
-    for i ∈ eachindex(x)
-        locs[i] ~ td.dist
-        loc = td.transform(locs[i])
-        
-        d1 = exp(- norm(parlour1 - loc))
-        d2 = exp(- norm(parlour2 - loc))
-
-        πs = [d1 / (d1 + d2), d2 / (d1 + d2)]
-        
-        x[i] ~ Turing.Categorical(πs)
-    end
-end
-
-# Example of the inner part of the model
-locs = rand(td, 10)
-d1 = exp.(- [norm(parlour1 - locs[:, i]) for i = 1:size(locs, 2)])
-d2 = exp.(- [norm(parlour2 - locs[:, i]) for i = 1:size(locs, 2)])
-ds = hcat(d1, d2)
-πs = ds ./ sum(ds; dims = 2)
-
-parlour1 .- locs
-
-# Running the model with some data
-fake_samples = [1, 2, 1, 1, 1, 1, 1, 2, 2, 1, 2, 1, 1, 2, 2, 1]
-num_fake_samples = length(fake_samples)
-m = napkin_model(fake_samples)
-
-num_mcmc_samples = 10_000
-mcmc_warmup = 1_000
-samples = sample(m, NUTS(mcmc_warmup, 0.65), num_mcmc_samples + mcmc_warmup; progress = true)
-
-posterior_locs_samples = reshape(samples[:locs].value[:, :, 1], (:, num_fake_samples, 2))
-x_samples = rand(td, 10_000)
-
-# CHECK ONE OF THE CUSTOMERS
-
-customer_idx = rand(1:num_fake_samples)
-# Transform because samples will be untransformed
-posterior_locs_idx = td.transform(posterior_locs_samples[:, customer_idx, :]')
-
-posterior_locs_idx = td.transform(reshape(posterior_locs_samples, (:, 2))')
-
-p1 = scatter(x_samples[1, :], x_samples[2, :], label = "locations", markerstrokewidth = 0, color = :orange, alpha = 0.3)
-
-xlims!(-10.0, 30.0)
-ylims!(-15.0, 15.0)
-
-histogram2d!(posterior_locs_idx[1, :], posterior_locs_idx[2, :], bins = 100, normed = true, alpha = 0.8, color = cgrad(:viridis))
-title!("Posterior")
-
-scatter!(parlour1[1:1], parlour1[2:2], label = "Parlour #1", color = :red, markersize = 5)
-scatter!(parlour2[1:1], parlour2[2:2], label = "Parlour #2", color = :blue, markersize = 5)
-
-savefig("../figures/ice-cream/posterior_$(num_mcmc_samples)_$(mcmc_warmup).svg")
-savefig("../figures/ice-cream/posterior_$(num_mcmc_samples)_$(mcmc_warmup).png")
-
-p2 = scatter(x_samples[1, :], x_samples[2, :], label = "locations", markerstrokewidth = 0, color = :orange, alpha = 0.3)
-
-xlims!(-10.0, 30.0)
-ylims!(-15.0, 15.0)
-
-histogram2d!(x_samples[1, :], x_samples[2, :]; bins = 100, normed = true, alpha = 0.8, color = cgrad(:viridis))
-title!("Prior")
-
-scatter!(parlour1[1:1], parlour1[2:2], label = "Parlour #1", color = :red, markersize = 5)
-scatter!(parlour2[1:1], parlour2[2:2], label = "Parlour #2", color = :blue, markersize = 5)
-
-savefig("../figures/ice-cream/prior_$(num_mcmc_samples)_$(mcmc_warmup).svg")
-savefig("../figures/ice-cream/prior_$(num_mcmc_samples)_$(mcmc_warmup).png")
-
-plot(p1, p2, layout = (2, 1), size = (500, 1000))
-savefig("../figures/ice-cream/combined_$(num_mcmc_samples)_$(mcmc_warmup).svg")
-savefig("../figures/ice-cream/combined_$(num_mcmc_samples)_$(mcmc_warmup).png")
-
-
-# SAVE THE STUFF
-for customer_idx = 1:num_fake_samples
-    # Transform because samples will be untransformed
-    posterior_locs_idx = td.transform(posterior_locs_samples[:, customer_idx, :]')
-
-    scatter(x_samples[1, :], x_samples[2, :], label = "x", markerstrokewidth = 0, color = :orange, alpha = 0.3)
-
-    xlims!(-10.0, 30.0)
-    ylims!(-15.0, 15.0)
-
-    histogram2d!(posterior_locs_idx[1, :], posterior_locs_idx[2, :], bins = 100, normed = true, alpha = 0.8, color = cgrad(:viridis))
-
-    scatter!(parlour1[1:1], parlour1[2:2], label = "Parlour #1", color = :red, markersize = 5)
-    scatter!(parlour2[1:1], parlour2[2:2], label = "Parlour #2", color = :blue, markersize = 5)
-
-    title!("Customer $customer_idx: Parlour #$(fake_samples[customer_idx])")
-    
-    savefig("../figures/ice-cream/customer_$(num_mcmc_samples)_$(mcmc_warmup)_$customer_idx.svg")
-    savefig("../figures/ice-cream/customer_$(num_mcmc_samples)_$(mcmc_warmup)_$customer_idx.png")
-end
+gif(anim, "../figures/nf-banana-density-estimation.gif", fps=10)

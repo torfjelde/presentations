@@ -37,3 +37,32 @@ function forward(b::LeakyReLU{T1}, x::AbstractVecOrMat{T2}) where {T1, T2}
     y = J .* x
     return (rv=y, logabsdetjac=logjac)
 end
+
+# Just some quick tests
+
+b = LeakyReLU(Float32.(2))
+z = ones(Float32, 2) - Float32.([0.0, 2.0])
+y = b(z)
+z_ = inv(b)(y)
+
+@assert z_ == z
+
+rv, logjac = forward(b, z)
+logjac_forward = logabsdetjac(b, z)
+logjac_inverse = logabsdetjacinv(b, y)
+
+@assert logjac ≈ logjac_forward ≈ - logjac_inverse
+
+b = LeakyReLU(Float32.(2))
+z = ones(Float32, (2, 3)) - Float32.(repeat([0.0, 2.0]', 3)')
+y = b(z)
+z_ = inv(b)(y)
+
+@assert z_ == z
+
+rv, logjac = forward(b, z)
+logjac_forward = logabsdetjac(b, z)
+logjac_inverse = logabsdetjacinv(b, y)
+
+@assert logjac ≈ logjac_forward ≈ - logjac_inverse
+@assert all([y[:, i] == b(z[:, i]) for i = 1:size(z, 2)])
