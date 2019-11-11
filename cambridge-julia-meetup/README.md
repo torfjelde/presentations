@@ -16,3 +16,5 @@ julia --project -e "using Pkg; Pkg.instantiate(); include(\"scripts/make.jl\")"
 ```
 This will download `MathJax` and `Reveal.js`, and then fix the local references in `presentation.html`. Then just open `presentation.html` in your browser and you're good to go!
 
+## Disclaimer
+Under no circumstance do I take any responsibility for monetary loss in the process of running an ice-cream parlour. The strategy outlined is by no means a guaranteed success despite the wording used in the presentation.
