@@ -749,7 +749,7 @@ include("scripts/nf_banana_improved.jl")
 #+end_src
 
 #+CAPTION: Beach prior. 6-layer NF with =Affine= and =LeakyReLU= as seen in animation from before.
-file:figures/nf_banana_figures/prior_10000_1000.svg
+file:figures/ice-cream/prior_10000_1000.svg
 
 
 *** Observations & model
