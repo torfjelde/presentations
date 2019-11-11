@@ -1,4 +1,5 @@
-using Pkg; Pkg.activate("..")
+using DrWatson
+quickactivate(@__DIR__)
 
 using Bijectors
 using Turing
@@ -83,6 +84,7 @@ function construct_flow(θ)
         relu_param = θ[start + relu_param_idx]
         
         aff = Affine(L + V * transpose(V), shift_params)
+        # aff = Shift(shift_params) ∘ MatrixPlusLowRankScale(L, V)
         b = LeakyReLU(abs(relu_param) + DTYPE(0.01))
 
         if i == num_layers
