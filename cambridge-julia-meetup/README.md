@@ -10,7 +10,9 @@ To generate from source, you need the `ox-reveal.el` package and Emacs (I'm usin
 ```
 open `presentation.org`, then do `C-c C-e` followed by `R B` to export and browse.
 
-For those *without* Emacs; get it! Nah, I'm kidding. Do the following
+For those *without* Emacs; **get it!** 
+
+Nah, I'm kidding. Do the following
 ```sh
 julia --project -e "using Pkg; Pkg.instantiate(); include(\"scripts/make.jl\")"
 ```
