@@ -20,3 +20,5 @@ open `presentation.org`, then do `C-c C-e` followed by `R B` to export and brows
 
 ## Disclaimer
 Under no circumstance do I take any responsibility for monetary loss in the process of running an ice-cream parlour. The strategy outlined is by no means a guaranteed success despite the wording used in the presentation.
+
+A (slightly) more serious disclaimer: this is my first "proper" presentation and so I have not yet settled on a proper structure/approach for presentations. The project you're seeing here is the glorious first attempt in all its glory. Enjoy.
