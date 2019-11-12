@@ -857,7 +857,7 @@ plot(p1, p2, layout = (2, 1), size = (500, 1000))
 
 #+HTML: <div class="fragment (appear">
 
-#+CAPTION: Beach posterior.
+#+CAPTION: Beach posterior. See =scripts/ice_cream_parlours.jl= for the code.
 file:figures/ice-cream/posterior_10000_1000.svg
 
 #+HTML: </div>

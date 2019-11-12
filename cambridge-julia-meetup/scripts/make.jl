@@ -17,7 +17,7 @@ separator = repeat("-", 80)
 output_dir = projectdir("assets")
 mkpath(output_dir)
 
-html_fname = projectdir("presentation.html")
+html_fname = projectdir("index.html")
 
 revealjs_path = joinpath(output_dir, "reveal.js-3.8.0")
 mathjax_path = joinpath(output_dir, "MathJax-2.7.5")
@@ -31,7 +31,7 @@ mathjax_cdn = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/"
 
 println() # separate a bit from the command
 
-println("> Fixing references to \$HOME in presentation.html")
+println("> Fixing references to \$HOME in index.html")
 txt = read(html_fname, String)
 open(html_fname, "w") do f
     write(f, replace(
