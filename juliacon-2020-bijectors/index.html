@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title><code>Bijectors.jl</code>: Transforming probability distributions in Julia</title>
+<meta name="author" content="(Tor Erlend Fjelde)"/>
+<style type="text/css">
+.underline { text-decoration: underline; }
+</style>
+<link rel="stylesheet" href="file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/assets/reveal.js-3.8.0/css/reveal.css"/>
+
+<link rel="stylesheet" href="file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/assets/reveal.js-3.8.0/css/theme/moon.css" id="theme"/>
+
+<link rel="stylesheet" href="custom.css"/>
+
+<!-- If the query includes 'print-pdf', include the PDF print sheet -->
+<script>
+    if( window.location.search.match( /print-pdf/gi ) ) {
+        var link = document.createElement( 'link' );
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        link.href = 'file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/assets/reveal.js-3.8.0/css/print/pdf.css';
+        document.getElementsByTagName( 'head' )[0].appendChild( link );
+    }
+</script>
+<script type="text/javascript" src="file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/assets/MathJax-2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+<section id="sec-title-slide"><div><div style="margin: -200px auto; opacity: 0.2;"><p><object data="https://turing.ml/dev/assets/images/turing-logo-wide.svg"></object></p></div><h1><code>Bijectors.jl</code></h1><h3>Transforming probability distributions in Julia</h3><p><a href="https://github.com/TuringLang/Bijectors.jl">https://github.com/TuringLang/Bijectors.jl</a></p></div>
+</section>
+
+<section>
+<section id="slide-orgd6e710a">
+<h2 id="orgd6e710a">A "bijector" you say?</h2>
+</section>
+<section id="slide-orgd6e710a-split">
+
+<div class="definition" id="def:bijector">
+<p>
+A <b>bijector</b> or <b>diffeomorphism</b> is a differentiable <i>bijection</i> (one-to-one and onto) \(b\) with a <i>differentiable</i> inverse \(b^{-1}\).
+</p>
+
+</div>
+
+<p class="fragment (appear)">
+For example \(b(x) = \exp(x)\) for \(x \in (-\infty, \infty)\)
+</p>
+<ul>
+<li class="fragment appear">\(\exp\) is differentiable</li>
+<li class="fragment appear">\(\exp\) has inverse \(\log\)</li>
+<li class="fragment appear">\(\log\) is differentiable (on \((0, \infty)\))</li>
+
+</ul>
+<p class="fragment (appear)">
+So \(\exp\) (and \(\log\)) is a bijector!
+</p>
+
+</section>
+<section id="slide-orgd6e710a-split">
+
+<blockquote nil>
+<p>
+Ok, but why do I care?
+</p>
+</blockquote>
+
+<div class="fragment (appear)">
+<p>
+Consider a generative process for \(y\) defined
+</p>
+<div>
+\begin{equation*}
+\begin{split}
+  x & \sim p \\
+  y & := b(x)
+\end{split}
+\end{equation*}
+
+</div>
+<p>
+where \(b\) is some transformation.
+</p>
+</div>
+
+<div class="fragment (appear)">
+<p>
+If \(b\) is a bijector, this <i>induces</i> a density \(\tilde{p}(y)\) defined by
+</p>
+<div>
+\begin{equation*}
+\tilde{p}(y) := p \big( b^{-1}(y) \big) \left| \det \mathcal{J}_{b^{-1}}(y) \right|
+\end{equation*}
+
+</div>
+</div>
+
+<div class="fragment (appear)">
+<p>
+Useful for changing the support of distributions, reparameterization, density estimation, varational inference, etc.
+</p>
+</div>
+
+</section>
+</section>
+<section>
+<section id="slide-org3015de9">
+<h2 id="org3015de9"><code>Bijectors.jl</code></h2>
+</section>
+<section id="slide-org3015de9-split">
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim><span style="color: #859900; font-weight: bold;">using</span> Bijectors; <span style="color: #859900; font-weight: bold;">using</span> Bijectors: Exp, Log
+
+b = Exp()
+b&#8315;&#185; = inv(b)
+
+b&#8315;&#185; isa Log
+</code></pre>
+</div>
+
+<pre class="example">
+true
+</pre>
+
+
+<div class="fragment (appear)">
+<p>
+We can evaluate a <code>Bijector</code>
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim>x = 0.0
+b(x) == 1.0  <span style="color: #93a1a1;"># </span><span style="color: #93a1a1;">since e&#8304; = 1</span>
+</code></pre>
+</div>
+
+<pre class="example">
+true
+</pre>
+
+
+</div>
+
+<div class="fragment (appear)">
+<p>
+We can <i>compose</i> bijectors to get a new <code>Bijector</code>
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim>(b &#8728; b) isa Bijector
+</code></pre>
+</div>
+
+<pre class="example">
+true
+</pre>
+
+
+</div>
+
+</section>
+<section id="slide-org3015de9-split">
+
+<p>
+And evaluate compositions of bijectors
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim>(b&#8315;&#185; &#8728; b)(x) == x
+</code></pre>
+</div>
+
+<pre class="example">
+true
+</pre>
+
+
+<p class="fragment (appear)">
+What about more complex/deeper compositions?
+</p>
+
+<div class="fragment (appear)">
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim>cb = b &#8728; b &#8728; b
+cb&#8315;&#185; = inv(cb)        <span style="color: #93a1a1;"># </span><span style="color: #93a1a1;">&lt;= inversion of a "large" composition</span>
+
+(cb&#8315;&#185; &#8728; cb)(x) == x
+</code></pre>
+</div>
+
+<pre class="example">
+true
+</pre>
+
+
+</div>
+
+<div class="fragment (appear)">
+<p>
+As mentioned before, the following terms are of particular interest
+</p>
+<div>
+\begin{equation*}
+\log \left| \det \mathcal{J}_{b^{-1}}(y) \right| \quad \text{or} \quad \log \left| \det \mathcal{J}_{b}(x) \right|
+\end{equation*}
+
+</div>
+</div>
+
+<div class="fragment (appear)">
+<p>
+Which works seamlessly even for compositions
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim>logabsdetjac(cb, x)
+</code></pre>
+</div>
+
+<pre class="example">
+3.718281828459045
+</pre>
+
+
+</div>
+
+</section>
+<section id="slide-org3015de9-split">
+
+<p>
+Above <code>logabsdetjac(cb, x)</code> expands to
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim>(y, logjac) = forward(cb.ts[1], x)
+var<span style="color: #2aa198;">"##res#256"</span> = forward(cb.ts[2], y)
+y = (var<span style="color: #2aa198;">"##res#256"</span>).rv
+logjac += (var<span style="color: #2aa198;">"##res#256"</span>).logabsdetjac
+logjac += logabsdetjac(cb.ts[3], y)
+<span style="color: #859900; font-weight: bold;">return</span> logjac
+</code></pre>
+</div>
+
+<div class="fragment (appear)">
+<p>
+while if we let <code>cb = Composed([b, b, b])</code>, we get
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim>y, logjac = forward(cb.ts[1], x)
+<span style="color: #859900; font-weight: bold;">for</span> i = 2:length(cb.ts)
+    res = forward(cb.ts[i], y)
+    y = res.rv
+    logjac += res.logabsdetjac
+<span style="color: #859900; font-weight: bold;">end</span>
+
+<span style="color: #859900; font-weight: bold;">return</span> logjac
+</code></pre>
+</div>
+
+<p>
+And similarily for other methods.
+</p>
+</div>
+
+</section>
+<section id="slide-org3015de9-split">
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim>d = Exponential(1.)
+</code></pre>
+</div>
+
+<pre class="example">
+Exponential{Float64}(θ=1.0)
+</pre>
+
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim>support(d)
+</code></pre>
+</div>
+
+<pre class="example">
+RealInterval(0.0, Inf)
+</pre>
+
+
+<div class="fragment (appear)">
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim>b = bijector(d)
+</code></pre>
+</div>
+
+<pre class="example">
+Log{0}()
+</pre>
+
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim>td = transformed(d, b) <span style="color: #93a1a1;"># </span><span style="color: #93a1a1;">OR `transformed(d)` in this case</span>
+</code></pre>
+</div>
+
+<pre class="example">
+Bijectors.TransformedDistribution{Exponential{Float64},Log{0},Univariate}(
+dist: Exponential{Float64}(θ=1.0)
+transform: Log{0}()
+)
+
+</pre>
+
+
+</div>
+
+<div class="fragment (appear)">
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim>support(td)
+</code></pre>
+</div>
+
+<pre class="example">
+RealInterval(-Inf, Inf)
+</pre>
+
+
+<div style="font-size: 0.5em;">
+<p>
+<b>Note:</b> <code>Distributions.support</code> only works for <code>UnivariateDistribution</code>.
+</p>
+</div>
+
+</div>
+
+</section>
+<section id="slide-org3015de9-split">
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Operation</th>
+<th scope="col" class="org-left">Method</th>
+<th scope="col" class="org-left">Freebie</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left">\(b \mapsto b^{-1}\)</td>
+<td class="org-left"><code>inv(b)</code></td>
+<td class="org-left">\(\checkmark\)</td>
+</tr>
+
+<tr>
+<td class="org-left">\((b_1, b_2) \mapsto (b_1 \circ b_2)\)</td>
+<td class="org-left"><code>b1 ∘ b2</code></td>
+<td class="org-left">\(\checkmark\)</td>
+</tr>
+
+<tr>
+<td class="org-left">\((b_1, b_2) \mapsto [b_1, b_2]\)</td>
+<td class="org-left"><code>stack(b1, b2)</code></td>
+<td class="org-left">\(\checkmark\)</td>
+</tr>
+
+<tr>
+<td class="org-left">\((b, n) \mapsto b^n := b \circ \cdots \circ b\) (n times)</td>
+<td class="org-left"><code>b^n</code></td>
+<td class="org-left">\(\checkmark\)</td>
+</tr>
+</tbody>
+</table>
+
+</section>
+<section id="slide-org3015de9-split">
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Operation</th>
+<th scope="col" class="org-left">Method</th>
+<th scope="col" class="org-left">Freebie</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left">\(x \mapsto b(x)\)</td>
+<td class="org-left"><code>b(x)</code></td>
+<td class="org-left">\(\times\)</td>
+</tr>
+
+<tr>
+<td class="org-left">\(y \mapsto b^{-1}(y)\)</td>
+<td class="org-left"><code>inv(b)(y)</code></td>
+<td class="org-left">\(\times\)</td>
+</tr>
+
+<tr>
+<td class="org-left">\(x \mapsto \log \lvert\det \mathcal{J}_b(x)\rvert\)</td>
+<td class="org-left"><code>logabsdetjac(b, x)</code></td>
+<td class="org-left">AD</td>
+</tr>
+
+<tr>
+<td class="org-left">\(x \mapsto \big( b(x), \log \lvert \det \mathcal{J}_b(x)\rvert \big)\)</td>
+<td class="org-left"><code>forward(b, x)</code></td>
+<td class="org-left">\(\checkmark\)</td>
+</tr>
+</tbody>
+</table>
+
+</section>
+<section id="slide-org3015de9-split">
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="org-left" />
+
+<col  class="org-left" />
+
+<col  class="org-left" />
+</colgroup>
+<thead>
+<tr>
+<th scope="col" class="org-left">Operation</th>
+<th scope="col" class="org-left">Method</th>
+<th scope="col" class="org-left">Freebie</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="org-left">\(p \mapsto q:= b_* p\)</td>
+<td class="org-left"><code>q = transformed(p, b)</code></td>
+<td class="org-left">\(\checkmark\)</td>
+</tr>
+
+<tr>
+<td class="org-left">\(y \sim q\)</td>
+<td class="org-left"><code>y = rand(q)</code></td>
+<td class="org-left">\(\checkmark\)</td>
+</tr>
+
+<tr>
+<td class="org-left">\(\log q(y)\)</td>
+<td class="org-left"><code>logpdf(q, y)</code></td>
+<td class="org-left">\(\checkmark\)</td>
+</tr>
+
+<tr>
+<td class="org-left">\(p \mapsto b\) s.t. \(\mathrm{support}(b_* p) = \mathbb{R}^d\)</td>
+<td class="org-left"><code>bijector(p)</code></td>
+<td class="org-left">\(\times\)</td>
+</tr>
+
+<tr>
+<td class="org-left">\(\big(x \sim p, b(x), \log \lvert\det \mathcal{J}_b(x)\rvert, \log q(y) \big)\)</td>
+<td class="org-left"><code>forward(q)</code></td>
+<td class="org-left">\(\checkmark\)</td>
+</tr>
+</tbody>
+</table>
+
+
+</section>
+</section>
+<section>
+<section id="slide-org0741454">
+<h2 id="org0741454">Example: density estimation</h2>
+</section>
+<section id="slide-org0741454-split">
+
+<p>
+Consider an <code>Affine</code> transformation, i.e.
+</p>
+<div>
+\begin{equation*}
+\mathrm{aff}(x) = W x + b
+\end{equation*}
+
+</div>
+<p>
+for matrix \(W\) (with assumption \(\det W \ne 0\)) and vector \(b\),
+</p>
+<div class="fragment (appear)">
+<p>
+and a non-linear (but <i>invertible</i>) activation function, e.g. <code>LeakyReLU</code>:
+</p>
+<div>
+\begin{equation*}
+a(x) = 
+\begin{cases}
+  x & \text{if } x \ge 0 \\
+  \alpha x & \text{if } x < 0
+\end{cases}
+\end{equation*}
+
+</div>
+<p>
+for some <i>non-zero</i> \(\alpha \in \mathbb{R}\) (usually chosen to be very small).
+</p>
+</div>
+
+<p class="fragment (appear)">
+Looks familiar?
+</p>
+
+<div class="fragment (appear)">
+<p>
+Yup; it's basically an <span class="underline">invertible neural network</span>!
+</p>
+
+<div class="org-src-container">
+
+<pre  class="src src-jupyter-julia"><code trim>layers = [LeakyReLU(&#945;[i]) &#8728; Affine(W[i], b[i]) <span style="color: #859900; font-weight: bold;">for</span> i = 1:num_layers]
+
+b = foldl(&#8728;, layers)
+td = transformed(base_dist, b)  <span style="color: #93a1a1;"># </span><span style="color: #93a1a1;">&lt;= "deep" normalising flow!</span>
+</code></pre>
+</div>
+
+</div>
+
+</section>
+<section id="slide-org0741454-split">
+
+
+<div class="figure">
+<p><img src="figures/nf-banana-density-estimation.gif" alt="nf-banana-density-estimation.gif" width="35%" />
+</p>
+<p><span class="figure-number">Figure 1: </span>Empirical density estimate (blue) compared with single batch of samples (red). Code can be found in <code>scripts/nf_banana.jl</code>.</p>
+</div>
+
+</section>
+</section>
+<section>
+<section id="slide-org4783449">
+<h2 id="org4783449">Thank you!</h2>
+<div id="hidden" style="display:none;">
+  <div id="header">
+    <!-- <div id="header-left">Tor Erlend Fjelde</div> -->
+    <!-- <div id="header-right">HEADER-RIGHT</div> -->
+    <div id="footer">
+      <div>
+        <div id="footer-logo">
+          <!-- <img src="figures/juliacon2020-background.png" /> -->
+          <!-- <img src="figures/julia-logo-dark.svg" /> -->
+          <!-- <img src="figures/juliacon.svg" /> -->
+          <strong>
+            JuliaCon
+            <sup>2020</sup>
+          </strong>
+        </div>
+      </div>
+      
+      <div>
+        <!-- <img src="figures/juliacon.svg" /> -->
+      </div>
+      
+      <div></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
+<script type="text/javascript">
+  // 3. On Reveal.js ready event, copy header/footer <div> into each `.slide-background` <div>
+      var header = $('#header').html();
+      if ( window.location.search.match( /print-pdf/gi ) ) {
+      Reveal.addEventListener( 'ready', function( event ) {
+      $('.slide-background').append(header);
+      });
+      }
+      else {
+      $('div.reveal').append(header);
+      }
+</script>
+</section>
+</section>
+</div>
+</div>
+<script src="file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/assets/reveal.js-3.8.0/js/reveal.js"></script>
+
+<script>
+// Full list of configuration options available here:
+// https://github.com/hakimel/reveal.js#configuration
+Reveal.initialize({
+multiplex: {
+    secret: '', // null if client
+    id: '', // id, obtained from socket.io server
+    url: '' // Location of socket.io server
+},
+
+// Optional libraries used to extend on reveal.js
+dependencies: [
+ { src: 'file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/assets/reveal.js-3.8.0/lib/js/classList.js', condition: function() { return !document.body.classList; } },
+ { src: 'file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/assets/reveal.js-3.8.0/plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+ { src: 'file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/assets/reveal.js-3.8.0/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+ { src: 'file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/assets/reveal.js-3.8.0/plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+ { src: 'file:///home/tor/Projects/mine/presentations/cambridge-julia-meetup/assets/reveal.js-3.8.0/plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }]
+});
+</script>
+</body>
+</html>
