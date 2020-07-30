@@ -32,10 +32,10 @@
 </section>
 
 <section>
-<section id="slide-orgd6e710a">
-<h2 id="orgd6e710a">A "bijector" you say?</h2>
+<section id="slide-orgc702210">
+<h2 id="orgc702210">A "bijector" you say?</h2>
 </section>
-<section id="slide-orgd6e710a-split">
+<section id="slide-orgc702210-split">
 
 <div class="definition" id="def:bijector">
 <p>
@@ -58,9 +58,9 @@ So \(\exp\) (and \(\log\)) is a bijector!
 </p>
 
 </section>
-<section id="slide-orgd6e710a-split">
+<section id="slide-orgc702210-split">
 
-<blockquote nil>
+<blockquote >
 <p>
 Ok, but why do I care?
 </p>
@@ -105,10 +105,10 @@ Useful for changing the support of distributions, reparameterization, density es
 </section>
 </section>
 <section>
-<section id="slide-org3015de9">
-<h2 id="org3015de9"><code>Bijectors.jl</code></h2>
+<section id="slide-org1227bee">
+<h2 id="org1227bee"><code>Bijectors.jl</code></h2>
 </section>
-<section id="slide-org3015de9-split">
+<section id="slide-org1227bee-split">
 
 <div class="org-src-container">
 
@@ -134,7 +134,7 @@ We can evaluate a <code>Bijector</code>
 <div class="org-src-container">
 
 <pre  class="src src-jupyter-julia"><code trim>x = 0.0
-b(x) == 1.0  <span style="color: #93a1a1;"># </span><span style="color: #93a1a1;">since e&#8304; = 1</span>
+b(x) == 1.0  <span style="color: #586e75;"># </span><span style="color: #586e75;">since e&#8304; = 1</span>
 </code></pre>
 </div>
 
@@ -164,7 +164,7 @@ true
 </div>
 
 </section>
-<section id="slide-org3015de9-split">
+<section id="slide-org1227bee-split">
 
 <p>
 And evaluate compositions of bijectors
@@ -189,7 +189,7 @@ What about more complex/deeper compositions?
 <div class="org-src-container">
 
 <pre  class="src src-jupyter-julia"><code trim>cb = b &#8728; b &#8728; b
-cb&#8315;&#185; = inv(cb)        <span style="color: #93a1a1;"># </span><span style="color: #93a1a1;">&lt;= inversion of a "large" composition</span>
+cb&#8315;&#185; = inv(cb)        <span style="color: #586e75;"># </span><span style="color: #586e75;">&lt;= inversion of a "large" composition</span>
 
 (cb&#8315;&#185; &#8728; cb)(x) == x
 </code></pre>
@@ -233,7 +233,7 @@ Which works seamlessly even for compositions
 </div>
 
 </section>
-<section id="slide-org3015de9-split">
+<section id="slide-org1227bee-split">
 
 <p>
 Above <code>logabsdetjac(cb, x)</code> expands to
@@ -274,7 +274,7 @@ And similarily for other methods.
 </div>
 
 </section>
-<section id="slide-org3015de9-split">
+<section id="slide-org1227bee-split">
 
 <div class="org-src-container">
 
@@ -313,7 +313,7 @@ Log{0}()
 
 <div class="org-src-container">
 
-<pre  class="src src-jupyter-julia"><code trim>td = transformed(d, b) <span style="color: #93a1a1;"># </span><span style="color: #93a1a1;">OR `transformed(d)` in this case</span>
+<pre  class="src src-jupyter-julia"><code trim>td = transformed(d, b) <span style="color: #586e75;"># </span><span style="color: #586e75;">OR `transformed(d)` in this case</span>
 </code></pre>
 </div>
 
@@ -349,7 +349,7 @@ RealInterval(-Inf, Inf)
 </div>
 
 </section>
-<section id="slide-org3015de9-split">
+<section id="slide-org1227bee-split">
 
 <table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
 
@@ -386,17 +386,11 @@ RealInterval(-Inf, Inf)
 <td class="org-left"><code>stack(b1, b2)</code></td>
 <td class="org-left">\(\checkmark\)</td>
 </tr>
-
-<tr>
-<td class="org-left">\((b, n) \mapsto b^n := b \circ \cdots \circ b\) (n times)</td>
-<td class="org-left"><code>b^n</code></td>
-<td class="org-left">\(\checkmark\)</td>
-</tr>
 </tbody>
 </table>
 
 </section>
-<section id="slide-org3015de9-split">
+<section id="slide-org1227bee-split">
 
 <table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
 
@@ -443,7 +437,7 @@ RealInterval(-Inf, Inf)
 </table>
 
 </section>
-<section id="slide-org3015de9-split">
+<section id="slide-org1227bee-split">
 
 <table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
 
@@ -499,10 +493,10 @@ RealInterval(-Inf, Inf)
 </section>
 </section>
 <section>
-<section id="slide-org0741454">
-<h2 id="org0741454">Example: density estimation</h2>
+<section id="slide-orge45dc5a">
+<h2 id="orge45dc5a">Example: density estimation</h2>
 </section>
-<section id="slide-org0741454-split">
+<section id="slide-orge45dc5a-split">
 
 <p>
 Consider an <code>Affine</code> transformation, i.e.
@@ -549,14 +543,14 @@ Yup; it's basically an <span class="underline">invertible neural network</span>!
 <pre  class="src src-jupyter-julia"><code trim>layers = [LeakyReLU(&#945;[i]) &#8728; Affine(W[i], b[i]) <span style="color: #859900; font-weight: bold;">for</span> i = 1:num_layers]
 
 b = foldl(&#8728;, layers)
-td = transformed(base_dist, b)  <span style="color: #93a1a1;"># </span><span style="color: #93a1a1;">&lt;= "deep" normalising flow!</span>
+td = transformed(base_dist, b)  <span style="color: #586e75;"># </span><span style="color: #586e75;">&lt;= "deep" normalising flow!</span>
 </code></pre>
 </div>
 
 </div>
 
 </section>
-<section id="slide-org0741454-split">
+<section id="slide-orge45dc5a-split">
 
 
 <div class="figure">
@@ -568,8 +562,8 @@ td = transformed(base_dist, b)  <span style="color: #93a1a1;"># </span><span sty
 </section>
 </section>
 <section>
-<section id="slide-org4783449">
-<h2 id="org4783449">Thank you!</h2>
+<section id="slide-org646d496">
+<h2 id="org646d496">Thank you!</h2>
 <div id="hidden" style="display:none;">
   <div id="header">
     <!-- <div id="header-left">Tor Erlend Fjelde</div> -->

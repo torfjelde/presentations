@@ -303,7 +303,6 @@ support(td)
 | $b \mapsto b^{-1}$                                          | =inv(b)=                | $\checkmark$ |
 | $(b_1, b_2) \mapsto (b_1 \circ b_2)$                        | =b1 ∘ b2=               | $\checkmark$ |
 | $(b_1, b_2) \mapsto [b_1, b_2]$                             | =stack(b1, b2)=         | $\checkmark$ |
-| $(b, n) \mapsto b^n := b \circ \cdots \circ b$ (n times)    | =b^n=                   | $\checkmark$ |
 |-------------------------------------------------------------+-------------------------+--------------|
 
 #+REVEAL: split
