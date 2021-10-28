@@ -11,6 +11,8 @@ end
 
 parsed_args = parse_args(ARGS, s)
 
+revealjs_version = "4.1.0"
+
 # Actual script
 separator = repeat("-", 80)
 
@@ -19,14 +21,14 @@ mkpath(output_dir)
 
 html_fname = projectdir("index.html")
 
-revealjs_path = joinpath(output_dir, "reveal.js-3.8.0")
+revealjs_path = joinpath(output_dir, "reveal.js-$(revealjs_version)")
 mathjax_path = joinpath(output_dir, "MathJax-2.7.5")
 
 orig_path = "/home/tor/Projects/mine/presentations/cambridge-julia-meetup"
-revealjs_orig_path = joinpath("/home/tor/Projects/mine/presentations/cambridge-julia-meetup", "reveal.js-3.8.0")
+revealjs_orig_path = joinpath("/home/tor/Projects/mine/presentations/cambridge-julia-meetup", "reveal.js-$(revealjs_version)")
 mathjax_orig_path = joinpath("/home/tor/Projects/mine/presentations/cambridge-julia-meetup", "MathJax-2.7.5")
 
-revealjs_cdn = "https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.8.0"
+revealjs_cdn = "https://cdnjs.cloudflare.com/ajax/libs/reveal.js/$(revealjs_version)"
 mathjax_cdn = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5"
 
 println() # separate a bit from the command
@@ -73,10 +75,10 @@ else
     end
 
     if !ispath(joinpath(output_dir, revealjs_path))
-        println("> Downloading Reveal.js v3.8.0")
+        println("> Downloading Reveal.js v$(revealjs_version)")
         println(separator)
 
-        run(`wget https://github.com/hakimel/reveal.js/archive/3.8.0.tar.gz -O $(revealjs_path).tar.gz`)
+        run(`wget https://github.com/hakimel/reveal.js/archive/$(revealjs_version).tar.gz -O $(revealjs_path).tar.gz`)
         run(`tar -C $(output_dir) -xzf $(revealjs_path).tar.gz`)
     end
     cd(projectdir())

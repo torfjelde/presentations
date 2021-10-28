@@ -7,9 +7,16 @@ s = ArgParseSettings()
     "--use-cdn"
     help = "if active, will use CDNs for MathJax and Reveal.js"
     action = :store_true
+    "--no-fix"
+    help = "if active, does not fix the references in the file"
+    action = :store_true
+    "--revealjs"
+    default = "3.8.0"
 end
 
 parsed_args = parse_args(ARGS, s)
+
+revealjs_version = parsed_args["revealjs"]
 
 # Actual script
 separator = repeat("-", 80)
@@ -19,34 +26,36 @@ mkpath(output_dir)
 
 html_fname = projectdir("index.html")
 
-revealjs_path = joinpath(output_dir, "reveal.js-3.8.0")
+revealjs_path = joinpath(output_dir, "reveal.js-$(revealjs_version)")
 mathjax_path = joinpath(output_dir, "MathJax-2.7.5")
 
 orig_path = "/home/tor/Projects/mine/presentations/cambridge-julia-meetup"
-revealjs_orig_path = joinpath("/home/tor/Projects/mine/presentations/cambridge-julia-meetup", "reveal.js-3.8.0")
+revealjs_orig_path = joinpath("/home/tor/Projects/mine/presentations/cambridge-julia-meetup", "reveal.js-$(revealjs_version)")
 mathjax_orig_path = joinpath("/home/tor/Projects/mine/presentations/cambridge-julia-meetup", "MathJax-2.7.5")
 
-revealjs_cdn = "https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.8.0/"
+revealjs_cdn = "https://cdnjs.cloudflare.com/ajax/libs/reveal.js/$(revealjs_version)/"
 mathjax_cdn = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/"
 
 println() # separate a bit from the command
 
-println("> Fixing references to \$HOME in index.html")
-txt = read(html_fname, String)
-open(html_fname, "w") do f
-    write(f, replace(
-        txt,
-        orig_path => projectdir()
-    ))
-end
+if !parsed_args["no-fix"]
+    println("> Fixing references to \$HOME in index.html")
+    txt = read(html_fname, String)
+    open(html_fname, "w") do f
+        write(f, replace(
+            txt,
+            orig_path => projectdir()
+        ))
+    end
 
-# replace MathJax.js and Reveal.js by local paths
-txt = read(html_fname, String)
-open(html_fname, "w") do f
-    write(f, replace(
-        replace(txt, Regex("file://($(mathjax_cdn)|$(mathjax_orig_path))") => mathjax_path),
-        Regex("file://($(revealjs_cdn)|$(revealjs_orig_path))") => revealjs_path
-    ))
+    # replace MathJax.js and Reveal.js by local paths
+    txt = read(html_fname, String)
+    open(html_fname, "w") do f
+        write(f, replace(
+            replace(txt, Regex("file://($(mathjax_cdn)|$(mathjax_orig_path))") => mathjax_path),
+            Regex("file://($(revealjs_cdn)|$(revealjs_orig_path))") => revealjs_path
+        ))
+    end
 end
 
 if parsed_args["use-cdn"]
@@ -72,10 +81,10 @@ else
     end
 
     if !ispath(joinpath(output_dir, revealjs_path))
-        println("> Downloading Reveal.js v3.8.0")
+        println("> Downloading Reveal.js v$(revealjs_version)")
         println(separator)
 
-        run(`wget https://github.com/hakimel/reveal.js/archive/3.8.0.tar.gz -O $(revealjs_path).tar.gz`)
+        run(`wget https://github.com/hakimel/reveal.js/archive/$(revealjs_version).tar.gz -O $(revealjs_path).tar.gz`)
         run(`tar -C $(output_dir) -xzf $(revealjs_path).tar.gz`)
     end
     cd(projectdir())
