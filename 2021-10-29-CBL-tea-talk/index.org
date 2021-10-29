@@ -1,0 +1,312 @@
+#+SETUPFILE: ~/org-blog/setup.org
+#+OPTIONS: tex:t toc:nil date:nil
+#+OPTIONS: header-args:julia :session jl :kernel julia-1.6 :exports both
+#+EXCLUDE_TAGS: noexport
+
+#+REVEAL_ROOT: file:///home/tor/Projects/mine/presentations/2021-10-29-CBL-tea-talk/assets/reveal.js-4.1.0/
+#+REVEAL_MATHJAX_URL: file:///home/tor/Projects/mine/presentations/2021-10-29-CBL-tea-talk/assets/MathJax-2.7.5/MathJax.js?config=TeX-AMS-MML_HTMLorMML
+#+REVEAL_TITLE_SLIDE: <div><div style="margin: 0px auto; opacity: 0.2;"></div><h2>Why Use Julia?</h2><h4>Attempt at unbiased take from biased person (me)</h4></div>
+#+REVEAL_EXTRA_CSS: custom.css
+#+REVEAL_THEME: moon
+#+REVEAL_PLUGINS: (markdown zoom)
+#+HTML_HEAD: <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+
+#+AUTHOR: Tor Erlend Fjelde
+#+TITLE: Why Julia?
+
+#+begin_src julia :kernel julia-1.6 :exports none
+pwd()
+#+end_src
+
+#+RESULTS:
+: "/home/tor/Projects/mine/presentations/2021-10-29-CBL-tea-talk"
+
+#+begin_src julia :kernel julia-1.6 :exports none
+using Pkg
+Pkg.activate(".")
+#+end_src
+
+#+RESULTS:
+: [32m[1m  Activating[22m[39m new environment at `~/Projects/mine/presentations/2021-10-29-CBL-tea-talk/Project.toml`
+
+#+begin_src julia :kernel julia-1.6 :exports none
+Pkg.add("PyCall")
+#+end_src
+
+#+RESULTS:
+#+begin_example
+[32m[1m    Updating[22m[39m registry at `~/.julia/registries/General`
+[32m[1m    Updating[22m[39m git-repo `https://github.com/JuliaRegistries/General.git`
+[32m[1m   Resolving[22m[39m package versions...
+[32m[1m   Installed[22m[39m VersionParsing ─ v1.2.1
+[32m[1m   Installed[22m[39m PyCall ───────── v1.92.5
+[32m[1m   Installed[22m[39m MacroTools ───── v0.5.9
+[32m[1m   Installed[22m[39m Parsers ──────── v2.1.1
+[32m[1m    Updating[22m[39m `~/Projects/mine/presentations/2021-10-29-CBL-tea-talk/Project.toml`
+ [90m [438e738f] [39m[92m+ PyCall v1.92.5[39m
+[32m[1m    Updating[22m[39m `~/Projects/mine/presentations/2021-10-29-CBL-tea-talk/Manifest.toml`
+ [90m [8f4d0f93] [39m[92m+ Conda v1.5.2[39m
+ [90m [682c06a0] [39m[92m+ JSON v0.21.2[39m
+ [90m [1914dd2f] [39m[92m+ MacroTools v0.5.9[39m
+ [90m [69de0a69] [39m[92m+ Parsers v2.1.1[39m
+ [90m [438e738f] [39m[92m+ PyCall v1.92.5[39m
+ [90m [81def892] [39m[92m+ VersionParsing v1.2.1[39m
+ [90m [2a0f44e3] [39m[92m+ Base64[39m
+ [90m [ade2ca70] [39m[92m+ Dates[39m
+ [90m [8f399da3] [39m[92m+ Libdl[39m
+ [90m [37e2e46d] [39m[92m+ LinearAlgebra[39m
+ [90m [d6f4376e] [39m[92m+ Markdown[39m
+ [90m [a63ad114] [39m[92m+ Mmap[39m
+ [90m [de0858da] [39m[92m+ Printf[39m
+ [90m [9a3f8284] [39m[92m+ Random[39m
+ [90m [9e88b42a] [39m[92m+ Serialization[39m
+ [90m [4ec0a83e] [39m[92m+ Unicode[39m
+[32m[1m    Building[22m[39m PyCall → `~/.julia/scratchspaces/44cfe95a-1eb2-52ea-b672-e2afdf69b78f/4ba3651d33ef76e24fef6a598b63ffd1c5e1cd17/build.log`
+[32m[1mPrecompiling[22m[39m project...
+[32m  ✓ [39m[90mMacroTools[39m
+[32m  ✓ [39mPyCall
+  2 dependencies successfully precompiled in 8 seconds (4 already precompiled)
+#+end_example
+
+#+begin_src julia :kernel julia-1.6 :exports none
+
+#+end_src
+
+* What is Julia?
+
+#+begin_quote
+Julia is a dynamically typed programinng language with just-in-time (JIT) compilation.
+#+end_quote
+
+#+REVEAL: split
+
+Fine. But what does this mean?
+#+ATTR_REVEAL: :frag (appear)
+- *Dynamically typed:* types are not necessarily known before running the code (runtime).
+- *Just-in-time (JIT) compilation:* code is compiled /as needed/ rather than in a separate compilation step prior to executing /any/ code.
+
+* Benchmarks
+
+#+HTML: <div style="background: white; border-radius: 5px"><img src="https://julialang.org/assets/benchmarks/benchmarks.svg" controls type="image/svg+xml"></div>
+
+*Take-away:* Julia achieves C-like performance for these functions, which is quite nice.
+
+#+REVEAL: split
+
+#+begin_quote
+Sure, but I don't really care about quicksort...
+#+end_quote
+
+/Fine./ Let's talk about some issues you might care about.
+
+* Composability
+
+** Multiple dispatch
+
+#+begin_src julia :kernel julia-1.6 :exports both
+f(x) = x^2
+#+end_src
+
+#+RESULTS:
+: f (generic function with 1 method)
+
+#+begin_src julia :kernel julia-1.6 :exports both
+f(2) # input is `Int`
+#+end_src
+
+#+RESULTS:
+: 4
+
+#+begin_src julia :kernel julia-1.6 :exports both
+f(2.0) # input is `Float64`
+#+end_src
+
+#+RESULTS:
+: 4.0
+
+#+HTML: <div class="fragment (appear)">
+
+#+begin_src julia :kernel julia-1.6 :exports both
+f(x::Int) = x^8
+#+end_src
+
+#+RESULTS:
+: f (generic function with 2 methods)
+
+#+begin_src julia :kernel julia-1.6 :exports both
+f(2) # input is `Int`
+#+end_src
+
+#+RESULTS:
+: 256
+
+#+begin_src julia :kernel julia-1.6 :exports both
+f(2.0) # input is `Float64`
+#+end_src
+
+#+RESULTS:
+: 4.0
+
+#+HTML: </div>
+
+#+REVEAL: split
+
+#+begin_quote
+Sick. But why is this useful?
+#+end_quote
+
+Suppose we're in Python land for a minute, and someone has implemented the following =class= within their package called =people.py=:
+
+#+begin_src julia :kernel julia-1.6 :exports code
+using PyCall
+py"""
+class Tor:
+    def is_clever(self):
+        return False
+"""
+#+end_src
+
+#+RESULTS:
+: ┌ Info: Precompiling PyCall [438e738f-606a-5dbb-bf0a-cddfbfd45ab0]
+: └ @ Base loading.jl:1342
+
+#+begin_src julia :kernel julia-1.6 :exports both
+tor_py = py"Tor()"
+tor_py.is_clever()
+#+end_src
+
+#+RESULTS:
+: false
+
+*Clearly this implementation of =Tor= is incorrect!*
+
+And even worse: this bug propagates to dependencies of =people.py=, e.g. =best_people_in_the_world.py= and =future_primeministers.py=.
+
+#+REVEAL: split
+
+#+begin_quote
+But surely a port to Julia would have the same bug!
+#+end_quote
+
+#+begin_src julia :kernel julia-1.6 :exports both
+# Some module owned by someone else.
+module People
+
+# Define the type `Tor` within `People`.
+struct Tor end
+# Define and implement a `is_clever` method within `People`.
+is_clever(::Tor) = false
+
+end
+#+end_src
+
+#+RESULTS:
+: Main.People
+
+#+begin_src julia :kernel julia-1.6 :exports both
+tor_jl = People.Tor()
+#+end_src
+
+#+RESULTS:
+: Main.People.Tor()
+
+#+begin_src julia :kernel julia-1.6 :exports both
+People.is_clever(tor_jl)
+#+end_src
+
+#+RESULTS:
+: false
+
+Ah, but this is /Julia/ after all! I can fix this!
+
+#+REVEAL: split
+
+#+begin_src julia :kernel julia-1.6 :exports both
+# Override previous 
+People.is_clever(::People.Tor) = true
+#+end_src
+
+#+RESULTS:
+
+#+begin_src julia :kernel julia-1.6 :exports both
+People.is_clever(tor_jl)
+#+end_src
+
+#+RESULTS:
+: true
+
+#+HTML: <img class="fragment (appear)" src="https://media4.giphy.com/media/OBuyIUMHO6yVq/giphy.gif?cid=790b76119464ca8e6572fbe1f6830e7aea84111eda639553&rid=giphy.gif&ct=g" >
+
+#+REVEAL: split
+
+More useful applications are:
+#+ATTR_REVEAL: :frag (appear)
+- Debug external code by copy-pasting method from source-code and make modifications, e.g. insert print-statements, implement a fix and execute buggy code to see if it worked, etc.
+- Extend interfaces / implementations from other modules / packages to work with your own types.
+
+* What is supported in Julia these days?
+
+** Differential Equations
+
+** Gaussian Processes
+
+** GPU?
+
+* TL;DR
+
+#+begin_quote
+I'm watching virtually and stopped following after the first slide. What did you just say?
+#+end_quote
+
+|------------------------+-----------------+-----------------+--------------+-------------|
+|                        | Feature support | Userfrendliness | Bug-freeness | Performance |
+|------------------------+-----------------+-----------------+--------------+-------------|
+| Auto-differentiation   | ★★★★★           | ★★★★            | ★★★          |             |
+| Optimization           |                 |                 |              |             |
+| Bayesian inference     |                 |                 |              |             |
+| Deep learning          |                 |                 |              |             |
+| Differential equations |                 |                 |              |             |
+| GPU                    |                 |                 |              |             |
+
+#+begin_export HTML
+<div id="hidden" style="display:none;">
+  <div id="header">
+    <div id="header-left"><div id="header-logo"><img style="opacity: 0.75;" src="logo.png" /></div></div>
+    <!-- <div id="header-right">HEADER-RIGHT</div> -->
+    <div id="footer">
+      <div>
+        <div id="footer-logo">
+          <!-- <img src="figures/juliacon2020-background.png" /> -->
+          <!-- <img src="figures/julia-logo-dark.svg" /> -->
+          <!-- <img src="logo.png" /> -->
+          <!-- <strong> -->
+          <!--   JuliaCon -->
+          <!--   <sup>2020</sup> -->
+          <!-- </strong> -->
+        </div>
+      </div>
+      
+      <div>
+        <!-- <img src="figures/juliacon.svg" /> -->
+      </div>
+      
+      <div></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
+<script type="text/javascript">
+  // 3. On Reveal.js ready event, copy header/footer <div> into each `.slide-background` <div>
+      var header = $('#header').html();
+      if ( window.location.search.match( /print-pdf/gi ) ) {
+      Reveal.addEventListener( 'ready', function( event ) {
+      $('.slide-background').append(header);
+      });
+      }
+      else {
+      $('div.reveal').append(header);
+      }
+</script>
+#+end_export
+
